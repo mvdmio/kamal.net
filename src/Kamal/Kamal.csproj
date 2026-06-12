@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RollForward>LatestMajor</RollForward>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Kamal</RootNamespace>
+    <AssemblyName>kamal</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>kamal</ToolCommandName>
+    <PackageId>mvdmio.Kamal</PackageId>
+    <Version>2.11.0</Version>
+    <Authors>Michiel van der Meer</Authors>
+    <Description>Deploy web apps anywhere — a .NET port of Kamal (basecamp/kamal), installable as a dotnet tool. No Ruby required.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/mvdmio/kamal.net</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/mvdmio/kamal.net</RepositoryUrl>
+    <PackageTags>kamal;deploy;deployment;docker;devops;ssh</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Templates\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SSH.NET" Version="2025.1.0" />
+    <PackageReference Include="System.CommandLine" Version="2.0.9" />
+    <PackageReference Include="YamlDotNet" Version="18.0.0" />
+  </ItemGroup>
+
+</Project>
