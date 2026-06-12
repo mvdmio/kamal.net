@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Templates\**\*" />
+    <EmbeddedResource Include="Configuration\Docs\*.yml" />
   </ItemGroup>
 
   <ItemGroup>
