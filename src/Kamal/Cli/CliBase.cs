@@ -43,7 +43,7 @@ public abstract class CliBase
       KAMAL.Log(message);
    }
 
-   protected static string Colorize(string message, string? color)
+   internal static string Colorize(string message, string? color)
    {
       if (color is null || !UseColor())
          return message;

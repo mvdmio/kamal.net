@@ -386,18 +386,7 @@ public sealed class ProxyCli : CliBase
       await backend.Upload(stream, remotePath).ConfigureAwait(false);
    }
 
-   private static string RenderToken(object? token) => RubyToS(token);
-
-   private static string RubyToS(object? value)
-   {
-      return value switch
-      {
-         null => "",
-         true => "true",
-         false => "false",
-         _ => value.ToString() ?? ""
-      };
-   }
+   private static string RenderToken(object? token) => RubyHelpers.RubyToS(token);
 
    private static string? RubyPresence(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 }

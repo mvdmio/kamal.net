@@ -73,7 +73,12 @@ internal static class SshConnectionPool
    {
       EnsureCleanupTimer();
 
-      while (true)
+      // A pooled connection that went idle and dropped is replaced on the next attempt; the
+      // retry cap guards against a host that keeps dropping immediately after connecting, which
+      // would otherwise spin tight (rebuild → observe disconnected → rebuild) until cancellation.
+      const int maxAttempts = 3;
+
+      for (var attempt = 1; ; attempt++)
       {
          cancellationToken.ThrowIfCancellationRequested();
 
@@ -99,6 +104,9 @@ internal static class SshConnectionPool
          // Stale connection: drop it and retry with a fresh one.
          if (Connections.TryRemove(new KeyValuePair<string, Task<PooledSshConnection>>(host, task)))
             connection.Dispose();
+
+         if (attempt >= maxAttempts)
+            throw new ExecuteError(host, $"Could not establish a connected SSH session to {host} after {maxAttempts} attempts.");
       }
    }
 

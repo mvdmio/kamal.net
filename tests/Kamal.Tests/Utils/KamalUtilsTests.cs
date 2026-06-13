@@ -110,6 +110,9 @@ public class KamalUtilsTests
       Assert.Equal(["web1"], KamalUtils.FilterSpecificItems(["web1"], ["web1", "web2"]));
       Assert.Equal(["web1", "worker1"], KamalUtils.FilterSpecificItems(["{web1,worker1}"], ["web1", "web2", "worker1"]));
       Assert.Empty(KamalUtils.FilterSpecificItems(["missing"], ["web1"]));
+
+      // fnmatch negation: [!...] excludes the listed characters (POSIX glob), not matches them.
+      Assert.Equal(["db1"], KamalUtils.FilterSpecificItems(["[!w]*"], ["web1", "db1"]));
    }
 
    [Fact]

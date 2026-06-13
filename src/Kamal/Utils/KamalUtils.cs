@@ -355,10 +355,18 @@ public static partial class KamalUtils
             case '}': regex.Append(')'); break;
             case ',': regex.Append('|'); break;
             case '[':
+            {
                var end = pattern.IndexOf(']', i + 1);
                if (end > i)
                {
-                  regex.Append(pattern[i..(end + 1)]);
+                  var inner = pattern[(i + 1)..end];
+
+                  // fnmatch negates a character class with a leading '!' (POSIX) or '^';
+                  // .NET regex only understands '^', so translate a leading '!'.
+                  if (inner.StartsWith('!'))
+                     inner = "^" + inner[1..];
+
+                  regex.Append('[').Append(inner).Append(']');
                   i = end;
                }
                else
@@ -367,6 +375,7 @@ public static partial class KamalUtils
                }
 
                break;
+            }
             default:
                regex.Append(Regex.Escape(c.ToString()));
                break;

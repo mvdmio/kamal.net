@@ -104,7 +104,10 @@ public sealed class SshBackend : BackendBase
    {
       var ssh = ConfiguredSsh;
 
-      await _startSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+      // Capture the semaphore instance: Configure() may replace the static field
+      // concurrently, and we must release the same instance we acquired.
+      var startSemaphore = _startSemaphore;
+      await startSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
       try
       {
@@ -125,7 +128,7 @@ public sealed class SshBackend : BackendBase
       }
       finally
       {
-         _startSemaphore.Release();
+         startSemaphore.Release();
       }
    }
 

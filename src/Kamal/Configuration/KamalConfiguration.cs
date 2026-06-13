@@ -306,12 +306,10 @@ public sealed partial class KamalConfiguration
          ["logging"] = LoggingArgs
       };
 
+      // Ruby's to_h compacts nil values out of the result.
       var compacted = new OrderedDictionary<string, object?>();
-      foreach (var (key, value) in result)
-      {
-         if (value is not null)
-            compacted[key] = value;
-      }
+      foreach (var (key, value) in result.Where(pair => pair.Value is not null))
+         compacted[key] = value;
 
       return compacted;
    }

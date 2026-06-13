@@ -1,5 +1,5 @@
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
+using Kamal.Utils;
 
 namespace Kamal.Secrets.Adapters;
 
@@ -9,8 +9,6 @@ namespace Kamal.Secrets.Adapters;
 /// </summary>
 public class OnePassword : AdapterBase
 {
-   private static readonly Regex DollarWithoutShellExpansion = new(@"\$(?!\{[^\}]*\})", RegexOptions.Compiled);
-
    protected override string? Login(string? account)
    {
       if (LoggedIn(account!))
@@ -164,21 +162,10 @@ public class OnePassword : AdapterBase
          if (value is true)
             parts.Add($"--{key}");
          else
-            parts.Add($"--{key} {EscapeShellValue(value.ToString()!)}");
+            parts.Add($"--{key} {KamalUtils.EscapeShellValue(value)}");
       }
 
       return string.Join(" ", parts);
-   }
-
-   /// <summary>
-   /// Port of Kamal::Utils.escape_shell_value: Ruby String#dump based quoting with backticks
-   /// and bare dollar signs escaped, leaving ${...} shell expansions intact.
-   /// </summary>
-   private static string EscapeShellValue(string value)
-   {
-      var dumped = RubyString.Inspect(value);
-      dumped = dumped.Replace("`", "\\`");
-      return DollarWithoutShellExpansion.Replace(dumped, "\\$");
    }
 
    private static string DeletePrefix(string value, string prefix)

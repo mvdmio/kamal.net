@@ -56,7 +56,7 @@ public static class KamalCli
 
    private static void PrintError(string message)
    {
-      Console.WriteLine(CliBaseColors.Red(message));
+      Console.WriteLine(CliBase.Colorize(message, CliBase.Red));
    }
 
    private static void PrintBacktraceIfVerbose(Exception e)
@@ -813,14 +813,3 @@ public static class KamalCli
    }
 }
 
-/// <summary>Shared color helper for the top-level error reporting.</summary>
-internal static class CliBaseColors
-{
-   public static string Red(string message)
-   {
-      if (Environment.GetEnvironmentVariable("NO_COLOR") is not null || Console.IsOutputRedirected)
-         return message;
-
-      return $"\x1b[31m{message}\x1b[0m";
-   }
-}
