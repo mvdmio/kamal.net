@@ -1,0 +1,95 @@
+name: Release
+
+# Releases are cut by pushing a tag: `git tag v2.11.1 && git push origin v2.11.1`.
+# The tag must match <Version> in src/Kamal/Kamal.csproj, and CHANGELOG.md should
+# carry a matching `## [2.11.1]` section — that section becomes the release notes.
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions:
+  contents: write # create the GitHub release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Source Link needs the full history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          csproj=$(sed -n 's|.*<Version>\(.*\)</Version>.*|\1|p' src/Kamal/Kamal.csproj)
+          if [ "$version" != "$csproj" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME implies version $version but src/Kamal/Kamal.csproj declares $csproj. Bump the csproj and re-tag."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in
+            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - run: dotnet restore
+
+      - run: dotnet build -c Release --no-restore
+
+      - run: dotnet test -c Release --no-build --verbosity normal
+
+      - run: dotnet pack src/Kamal -c Release --no-build -o artifacts
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          version='${{ steps.version.outputs.version }}'
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]"        { found = 1; next }
+            found && /^## \[/             { exit }
+            found && /^\[[^]]+\]: http/   { exit }   # link reference block at EOF
+            found                         { print }
+          ' CHANGELOG.md > release-notes.md
+          # Trim leading/trailing blank lines; fall back to generated notes if empty.
+          sed -i -e '/./,$!d' release-notes.md
+          if [ -s release-notes.md ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No '## [$version]' section in CHANGELOG.md; falling back to auto-generated notes."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push package to NuGet
+        run: >
+          dotnet nuget push "artifacts/*.nupkg"
+          --source https://api.nuget.org/v3/index.json
+          --api-key ${{ secrets.NUGET_API_KEY }}
+          --skip-duplicate
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes_arg=(--generate-notes)
+          if [ '${{ steps.notes.outputs.found }}' = 'true' ]; then
+            {
+              echo
+              echo "---"
+              echo
+              echo "Install: \`dotnet tool install -g mvdmio.Kamal --version ${{ steps.version.outputs.version }}\`"
+              echo
+              echo "Package: https://www.nuget.org/packages/mvdmio.Kamal/${{ steps.version.outputs.version }}"
+            } >> release-notes.md
+            notes_arg=(--notes-file release-notes.md)
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --title "v${{ steps.version.outputs.version }}" \
+            --prerelease='${{ steps.version.outputs.prerelease }}' \
+            "${notes_arg[@]}" \
+            artifacts/*.nupkg artifacts/*.snupkg
