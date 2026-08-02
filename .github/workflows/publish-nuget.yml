@@ -1,0 +1,34 @@
+name: Publish NuGet package
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/**"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Source Link needs the full history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - run: dotnet restore
+
+      - run: dotnet build -c Release --no-restore
+
+      - run: dotnet test -c Release --no-build --verbosity normal
+
+      - run: dotnet pack src/Kamal -c Release --no-build -o artifacts
+
+      - name: Push package
+        run: >
+          dotnet nuget push "artifacts/*.nupkg"
+          --source https://api.nuget.org/v3/index.json
+          --api-key ${{ secrets.NUGET_API_KEY }}
+          --skip-duplicate
