@@ -9,6 +9,20 @@ reserved for changes to the port itself.
 
 ## [Unreleased]
 
+### Fixed
+
+- **SSH uploads with a permission mode no longer crash or apply the wrong
+  permissions** — `SshBackend` was converting the mode string (`"0600"`,
+  `"0644"`, `"0700"`) into a POSIX bitmask before handing it to SSH.NET's
+  `SftpClient.ChangePermissions`, which expects the octal digits read as a
+  decimal number instead. `"0600"` and `"0700"` threw
+  `ArgumentOutOfRangeException (Parameter 'mode')`, aborting `kamal accessory
+  boot`, `kamal deploy` and `kamal app boot` right after the secrets upload;
+  `"0644"` silently applied `0420` instead, corrupting the proxy's TLS
+  certificate and private key permissions. Both the single-file and recursive
+  directory upload paths now go through the shared `UploadMode` parse and pass
+  SSH.NET's octal-digit form.
+
 ## [2.11.0] - 2026-08-02
 
 First release. A complete C# port of Kamal 2.11, distributed as a dotnet tool —

@@ -285,7 +285,7 @@ public sealed class SshBackend : BackendBase
       await sftp.UploadFileAsync(local, remotePath, cancellationToken).ConfigureAwait(false);
 
       if (mode is not null)
-         sftp.ChangePermissions(remotePath, Convert.ToInt16(mode, 8));
+         sftp.ChangePermissions(remotePath, (short)UploadMode.Parse(mode, remotePath).SshOctal);
    }
 
    private static async Task UploadDirectory(SftpClient sftp, DirectoryInfo local, string remotePath, string? mode, CancellationToken cancellationToken)
@@ -294,7 +294,7 @@ public sealed class SshBackend : BackendBase
          await sftp.CreateDirectoryAsync(remotePath, cancellationToken).ConfigureAwait(false);
 
       if (mode is not null)
-         sftp.ChangePermissions(remotePath, Convert.ToInt16(mode, 8));
+         sftp.ChangePermissions(remotePath, (short)UploadMode.Parse(mode, remotePath).SshOctal);
 
       foreach (var file in local.GetFiles())
       {
