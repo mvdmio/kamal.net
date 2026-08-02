@@ -140,20 +140,20 @@ public sealed class LocalBackend : BackendBase
    /// </summary>
    private static void ApplyMode(string path, UploadMode? mode)
    {
-      if (mode is not { } uploadMode || OperatingSystem.IsWindows())
+      if (mode is null || OperatingSystem.IsWindows())
          return;
 
       if (Directory.Exists(path))
       {
          foreach (var entry in Directory.GetFileSystemEntries(path))
-            ApplyMode(entry, uploadMode);
+            ApplyMode(entry, mode);
 
          // Last, so a mode without the traverse bit cannot lock us out of the tree we are still walking.
-         File.SetUnixFileMode(path, uploadMode.UnixFileMode);
+         File.SetUnixFileMode(path, mode.UnixFileMode);
       }
       else if (File.Exists(path))
       {
-         File.SetUnixFileMode(path, uploadMode.UnixFileMode);
+         File.SetUnixFileMode(path, mode.UnixFileMode);
       }
    }
 }

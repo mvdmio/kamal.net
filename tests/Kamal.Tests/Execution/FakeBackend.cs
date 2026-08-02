@@ -51,6 +51,10 @@ public sealed class FakeBackend : BackendBase
 
    public override Task Upload(string localPath, string remotePath, string? mode = null, bool recursive = false, CancellationToken cancellationToken = default)
    {
+      // The mode is recorded as the caller spelled it, but it still has to be a mode a real
+      // backend would accept — otherwise this double hides exactly the bug it should catch.
+      _ = UploadMode.ParseOptional(mode, remotePath);
+
       lock (_lock)
          Uploads.Add((localPath, remotePath, mode));
 
@@ -59,6 +63,8 @@ public sealed class FakeBackend : BackendBase
 
    public override Task Upload(Stream local, string remotePath, string? mode = null, CancellationToken cancellationToken = default)
    {
+      _ = UploadMode.ParseOptional(mode, remotePath);
+
       lock (_lock)
          Uploads.Add((local, remotePath, mode));
 

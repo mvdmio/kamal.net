@@ -313,8 +313,8 @@ public sealed class SshBackend : BackendBase
 
    private static void ApplyMode(SftpClient sftp, string remotePath, UploadMode? mode)
    {
-      if (mode is { } uploadMode)
-         sftp.ChangePermissions(remotePath, uploadMode.PermissionDigits);
+      if (mode is not null)
+         sftp.ChangePermissions(remotePath, mode.PermissionDigits);
    }
 
    private static string UnixJoin(string left, string right) => $"{left.TrimEnd('/')}/{right}";

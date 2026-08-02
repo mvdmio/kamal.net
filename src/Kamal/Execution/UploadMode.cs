@@ -1,21 +1,24 @@
-using System.Globalization;
-
 namespace Kamal.Execution;
 
 /// <summary>
-/// Parses the octal permission mode string an upload carries (e.g. <c>"0600"</c>,
-/// <c>"755"</c>, <c>"1777"</c>) once per upload, and exposes both representations its
+/// The permission mode an upload carries, parsed once from its octal string form
+/// (e.g. <c>"0600"</c>, <c>"755"</c>, <c>"1777"</c>) into the two representations its
 /// consumers need: the POSIX bitmask <see cref="Kamal.Execution.UploadMode.UnixFileMode"/>
 /// (what <see cref="File.SetUnixFileMode(string, UnixFileMode)"/> takes), and
 /// <see cref="Kamal.Execution.UploadMode.PermissionDigits"/>, which is what SSH.NET's
 /// <c>SftpClient.ChangePermissions</c> takes.
 /// </summary>
-public readonly record struct UploadMode
+/// <remarks>
+/// Both representations are derived from the same parsed value, so they cannot disagree,
+/// and the only way to get an instance is <see cref="Parse(string, string)"/> — there is no
+/// zero-valued default that would silently chmod something to no permissions at all.
+/// </remarks>
+public sealed record UploadMode
 {
-   private UploadMode(UnixFileMode unixFileMode, short permissionDigits)
+   private UploadMode(int bits)
    {
-      UnixFileMode = unixFileMode;
-      PermissionDigits = permissionDigits;
+      UnixFileMode = (UnixFileMode)bits;
+      PermissionDigits = ToDecimalDigits(bits);
    }
 
    /// <summary>The POSIX permission bitmask, for <see cref="File.SetUnixFileMode(string, UnixFileMode)"/>.</summary>
@@ -37,17 +40,14 @@ public readonly record struct UploadMode
    /// </summary>
    public static UploadMode Parse(string mode, string path)
    {
-      if (!IsValidOctalMode(mode))
+      if (!TryReadOctalDigits(mode, out var bits))
       {
          throw new FormatException(
             $"Invalid upload mode \"{mode}\" for path \"{path}\": " +
             "expected octal permission digits such as \"0600\", \"755\", or \"1777\".");
       }
 
-      var unixFileMode = (UnixFileMode)Convert.ToInt32(mode, 8);
-      var permissionDigits = short.Parse(mode, NumberStyles.None, CultureInfo.InvariantCulture);
-
-      return new UploadMode(unixFileMode, permissionDigits);
+      return new UploadMode(bits);
    }
 
    /// <summary>
@@ -59,17 +59,37 @@ public readonly record struct UploadMode
       return mode is null ? null : Parse(mode, path);
    }
 
-   private static bool IsValidOctalMode(string mode)
+   /// <summary>Reads at most four octal digits into the permission bits they spell.</summary>
+   private static bool TryReadOctalDigits(string mode, out int bits)
    {
+      bits = 0;
+
       if (mode.Length is 0 or > 4)
          return false;
 
-      foreach (var c in mode)
+      foreach (var digit in mode)
       {
-         if (c is < '0' or > '7')
+         if (digit is < '0' or > '7')
             return false;
+
+         bits = (bits << 3) | (digit - '0');
       }
 
       return true;
+   }
+
+   /// <summary>Writes the octal digits of <paramref name="bits"/> back out as a decimal number.</summary>
+   private static short ToDecimalDigits(int bits)
+   {
+      var digits = 0;
+      var place = 1;
+
+      for (; bits != 0; bits >>= 3)
+      {
+         digits += (bits & 7) * place;
+         place *= 10;
+      }
+
+      return (short)digits;
    }
 }
