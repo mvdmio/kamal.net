@@ -9,6 +9,8 @@ reserved for changes to the port itself.
 
 ## [Unreleased]
 
+## [2.11.1] - 2026-08-02
+
 ### Fixed
 
 - **SSH uploads with a permission mode no longer crash or apply the wrong
@@ -80,5 +82,6 @@ dotnet tool install -g mvdmio.Kamal
   a note.
 - `-h` is `--hosts` (as upstream); use `--help` or `-?` for help.
 
-[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.11.0...HEAD
+[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.11.1...HEAD
+[2.11.1]: https://github.com/mvdmio/kamal.net/compare/v2.11.0...v2.11.1
 [2.11.0]: https://github.com/mvdmio/kamal.net/releases/tag/v2.11.0

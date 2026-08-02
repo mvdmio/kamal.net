@@ -1,3 +1,5 @@
+using Kamal.Cli;
+
 namespace Kamal.Tests.Cli;
 
 /// <summary>Port of the high-value parts of <c>test/cli/main_test.rb</c>.</summary>
@@ -12,7 +14,7 @@ public sealed class MainCliTests
       var exitCode = await harness.Run("version");
 
       Assert.Equal(0, exitCode);
-      Assert.Contains("2.11.0 (kamal.net)", harness.Output);
+      Assert.Contains($"{MainCli.KamalVersion()} (kamal.net)", harness.Output);
    }
 
    [Fact]

@@ -30,7 +30,7 @@ public sealed class AliasTests
       var exitCode = await harness.Run("ver");
 
       Assert.Equal(0, exitCode);
-      Assert.Contains("2.11.0 (kamal.net)", harness.Output);
+      Assert.Contains($"{MainCli.KamalVersion()} (kamal.net)", harness.Output);
    }
 
    [Fact]
