@@ -82,17 +82,20 @@ public sealed class LocalBackend : BackendBase
 
    public override Task Upload(string localPath, string remotePath, string? mode = null, bool recursive = false, CancellationToken cancellationToken = default)
    {
+      // Parsed before anything is copied, so a bad mode leaves nothing behind at the destination.
+      var uploadMode = UploadMode.ParseOptional(mode, remotePath);
+
       if (recursive && Directory.Exists(localPath))
       {
          var destination = Path.Combine(remotePath, Path.GetFileName(Path.TrimEndingDirectorySeparator(localPath)));
          CopyDirectory(new DirectoryInfo(localPath), destination);
-         ApplyMode(destination, mode);
+         ApplyMode(destination, uploadMode);
       }
       else
       {
          Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(remotePath)) ?? ".");
          File.Copy(localPath, remotePath, overwrite: true);
-         ApplyMode(remotePath, mode);
+         ApplyMode(remotePath, uploadMode);
       }
 
       return Task.CompletedTask;
@@ -100,12 +103,15 @@ public sealed class LocalBackend : BackendBase
 
    public override async Task Upload(Stream local, string remotePath, string? mode = null, CancellationToken cancellationToken = default)
    {
+      // Parsed before anything is copied, so a bad mode leaves nothing behind at the destination.
+      var uploadMode = UploadMode.ParseOptional(mode, remotePath);
+
       Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(remotePath)) ?? ".");
 
       await using (var file = File.Create(remotePath))
          await local.CopyToAsync(file, cancellationToken).ConfigureAwait(false);
 
-      ApplyMode(remotePath, mode);
+      ApplyMode(remotePath, uploadMode);
    }
 
    private static async Task PumpAsync(StreamReader reader, string streamName, StringBuilder buffer, Action<string, string> onOutputLine, CancellationToken cancellationToken)
@@ -128,14 +134,26 @@ public sealed class LocalBackend : BackendBase
          CopyDirectory(directory, Path.Combine(destination, directory.Name));
    }
 
-   private static void ApplyMode(string path, string? mode)
+   /// <summary>
+   /// Applies <paramref name="mode"/> to <paramref name="path"/> and, when it is a directory,
+   /// to everything beneath it — matching what the SSH backend does for a recursive upload.
+   /// </summary>
+   private static void ApplyMode(string path, UploadMode? mode)
    {
-      if (mode is null || OperatingSystem.IsWindows())
+      if (mode is not { } uploadMode || OperatingSystem.IsWindows())
          return;
 
-      var uploadMode = UploadMode.Parse(mode, path);
+      if (Directory.Exists(path))
+      {
+         foreach (var entry in Directory.GetFileSystemEntries(path))
+            ApplyMode(entry, uploadMode);
 
-      if (File.Exists(path))
+         // Last, so a mode without the traverse bit cannot lock us out of the tree we are still walking.
          File.SetUnixFileMode(path, uploadMode.UnixFileMode);
+      }
+      else if (File.Exists(path))
+      {
+         File.SetUnixFileMode(path, uploadMode.UnixFileMode);
+      }
    }
 }

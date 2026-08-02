@@ -4,18 +4,36 @@ namespace Kamal.Tests.Execution;
 
 public class UploadModeTests
 {
+   public static TheoryData<string, UnixFileMode, short> ValidModes => new()
+   {
+      { "0600", UnixFileMode.UserRead | UnixFileMode.UserWrite, 600 },
+      { "0644", UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead, 644 },
+      { "0700", UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, 700 },
+      {
+         "755",
+         UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+            | UnixFileMode.GroupRead | UnixFileMode.GroupExecute
+            | UnixFileMode.OtherRead | UnixFileMode.OtherExecute,
+         755
+      },
+      {
+         "1777",
+         UnixFileMode.StickyBit
+            | UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+            | UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute
+            | UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute,
+         1777
+      }
+   };
+
    [Theory]
-   [InlineData("0600", 0x180, 600)]
-   [InlineData("0644", 0x1A4, 644)]
-   [InlineData("0700", 0x1C0, 700)]
-   [InlineData("755", 0x1ED, 755)]
-   [InlineData("1777", 0x3FF, 1777)]
-   public void ParsesValidModesIntoBothRepresentations(string mode, int expectedUnixFileMode, int expectedSshOctal)
+   [MemberData(nameof(ValidModes))]
+   public void ParsesValidModesIntoBothRepresentations(string mode, UnixFileMode expectedUnixFileMode, short expectedPermissionDigits)
    {
       var parsed = UploadMode.Parse(mode, "/remote/path");
 
-      Assert.Equal((UnixFileMode)expectedUnixFileMode, parsed.UnixFileMode);
-      Assert.Equal(expectedSshOctal, parsed.SshOctal);
+      Assert.Equal(expectedUnixFileMode, parsed.UnixFileMode);
+      Assert.Equal(expectedPermissionDigits, parsed.PermissionDigits);
    }
 
    [Theory]
@@ -29,5 +47,18 @@ public class UploadModeTests
 
       Assert.Contains(mode, error.Message);
       Assert.Contains("/remote/secrets.env", error.Message);
+   }
+
+   [Fact]
+   public void ParseOptionalPassesNullThrough()
+   {
+      Assert.Null(UploadMode.ParseOptional(null, "/remote/secrets.env"));
+   }
+
+   [Fact]
+   public void ParseOptionalValidatesANonNullMode()
+   {
+      Assert.Equal((short?)600, UploadMode.ParseOptional("0600", "/remote/secrets.env")?.PermissionDigits);
+      Assert.Throws<FormatException>(() => UploadMode.ParseOptional("0999", "/remote/secrets.env"));
    }
 }

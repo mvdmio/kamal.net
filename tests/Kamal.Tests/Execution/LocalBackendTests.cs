@@ -91,4 +91,76 @@ public class LocalBackendTests
          File.Delete(path);
       }
    }
+
+   [Fact]
+   public async Task UploadStreamAppliesTheMode()
+   {
+      if (OperatingSystem.IsWindows())
+         return;
+
+      var path = Path.Combine(Path.GetTempPath(), "kamal-local-upload-" + Guid.NewGuid().ToString("N") + ".env");
+
+      try
+      {
+         using var content = new MemoryStream("SECRET=1"u8.ToArray());
+         await _backend.Upload(content, path, mode: "0600");
+
+         Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path));
+      }
+      finally
+      {
+         File.Delete(path);
+      }
+   }
+
+   [Fact]
+   public async Task RecursiveUploadAppliesTheModeToTheWholeTree()
+   {
+      if (OperatingSystem.IsWindows())
+         return;
+
+      var root = Path.Combine(Path.GetTempPath(), "kamal-local-recursive-" + Guid.NewGuid().ToString("N"));
+      var source = Path.Combine(root, "pages");
+      var destination = Path.Combine(root, "remote");
+      var expected = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+
+      try
+      {
+         Directory.CreateDirectory(Path.Combine(source, "nested"));
+         await File.WriteAllTextAsync(Path.Combine(source, "503.html"), "gone");
+         await File.WriteAllTextAsync(Path.Combine(source, "nested", "404.html"), "missing");
+
+         await _backend.Upload(source, destination, mode: "0700", recursive: true);
+
+         var uploaded = Path.Combine(destination, "pages");
+         Assert.Equal(expected, File.GetUnixFileMode(uploaded));
+         Assert.Equal(expected, File.GetUnixFileMode(Path.Combine(uploaded, "503.html")));
+         Assert.Equal(expected, File.GetUnixFileMode(Path.Combine(uploaded, "nested")));
+         Assert.Equal(expected, File.GetUnixFileMode(Path.Combine(uploaded, "nested", "404.html")));
+      }
+      finally
+      {
+         Directory.Delete(root, recursive: true);
+      }
+   }
+
+   [Fact]
+   public async Task AnInvalidModeFailsBeforeAnythingIsWritten()
+   {
+      var path = Path.Combine(Path.GetTempPath(), "kamal-local-upload-" + Guid.NewGuid().ToString("N") + ".env");
+
+      try
+      {
+         using var content = new MemoryStream("SECRET=1"u8.ToArray());
+         var error = await Assert.ThrowsAsync<FormatException>(() => _backend.Upload(content, path, mode: "0999"));
+
+         Assert.Contains("0999", error.Message);
+         Assert.Contains(path, error.Message);
+         Assert.False(File.Exists(path));
+      }
+      finally
+      {
+         File.Delete(path);
+      }
+   }
 }

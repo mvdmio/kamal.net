@@ -22,6 +22,15 @@ reserved for changes to the port itself.
   certificate and private key permissions. Both the single-file and recursive
   directory upload paths now go through the shared `UploadMode` parse and pass
   SSH.NET's octal-digit form.
+- **Local recursive uploads now apply the mode to the whole tree** —
+  `LocalBackend` parsed the mode for a recursive upload and then discarded it,
+  because it only applied permissions to paths that were files. The copied
+  directory and everything beneath it now get the requested mode, matching the
+  SSH backend.
+- **An invalid upload mode no longer leaves a file behind** — both backends
+  transferred the file first and validated the mode second, so a bad mode wrote
+  a secrets file at the default umask before failing. The mode is now parsed
+  before anything is transferred.
 
 ## [2.11.0] - 2026-08-02
 

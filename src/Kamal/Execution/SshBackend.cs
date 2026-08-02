@@ -76,25 +76,31 @@ public sealed class SshBackend : BackendBase
 
    public override async Task Upload(string localPath, string remotePath, string? mode = null, bool recursive = false, CancellationToken cancellationToken = default)
    {
+      // Parsed before anything is transferred, so a bad mode leaves nothing behind on the host.
+      var uploadMode = UploadMode.ParseOptional(mode, remotePath);
+
       using var sftp = await CreateSftpClientAsync(cancellationToken).ConfigureAwait(false);
 
       if (recursive && Directory.Exists(localPath))
       {
          // scp -r semantics: the local directory is created as a child of the remote path.
          var directoryName = Path.GetFileName(Path.TrimEndingDirectorySeparator(localPath));
-         await UploadDirectory(sftp, new DirectoryInfo(localPath), UnixJoin(remotePath, directoryName), mode, cancellationToken).ConfigureAwait(false);
+         await UploadDirectory(sftp, new DirectoryInfo(localPath), UnixJoin(remotePath, directoryName), uploadMode, cancellationToken).ConfigureAwait(false);
       }
       else
       {
          await using var file = File.OpenRead(localPath);
-         await UploadStream(sftp, file, remotePath, mode, cancellationToken).ConfigureAwait(false);
+         await UploadStream(sftp, file, remotePath, uploadMode, cancellationToken).ConfigureAwait(false);
       }
    }
 
    public override async Task Upload(Stream local, string remotePath, string? mode = null, CancellationToken cancellationToken = default)
    {
+      // Parsed before anything is transferred, so a bad mode leaves nothing behind on the host.
+      var uploadMode = UploadMode.ParseOptional(mode, remotePath);
+
       using var sftp = await CreateSftpClientAsync(cancellationToken).ConfigureAwait(false);
-      await UploadStream(sftp, local, remotePath, mode, cancellationToken).ConfigureAwait(false);
+      await UploadStream(sftp, local, remotePath, uploadMode, cancellationToken).ConfigureAwait(false);
    }
 
    private static Ssh ConfiguredSsh => _sshConfig
@@ -280,21 +286,17 @@ public sealed class SshBackend : BackendBase
       return sftp;
    }
 
-   private static async Task UploadStream(SftpClient sftp, Stream local, string remotePath, string? mode, CancellationToken cancellationToken)
+   private static async Task UploadStream(SftpClient sftp, Stream local, string remotePath, UploadMode? mode, CancellationToken cancellationToken)
    {
       await sftp.UploadFileAsync(local, remotePath, cancellationToken).ConfigureAwait(false);
 
-      if (mode is not null)
-         sftp.ChangePermissions(remotePath, (short)UploadMode.Parse(mode, remotePath).SshOctal);
+      ApplyMode(sftp, remotePath, mode);
    }
 
-   private static async Task UploadDirectory(SftpClient sftp, DirectoryInfo local, string remotePath, string? mode, CancellationToken cancellationToken)
+   private static async Task UploadDirectory(SftpClient sftp, DirectoryInfo local, string remotePath, UploadMode? mode, CancellationToken cancellationToken)
    {
       if (!await sftp.ExistsAsync(remotePath, cancellationToken).ConfigureAwait(false))
          await sftp.CreateDirectoryAsync(remotePath, cancellationToken).ConfigureAwait(false);
-
-      if (mode is not null)
-         sftp.ChangePermissions(remotePath, (short)UploadMode.Parse(mode, remotePath).SshOctal);
 
       foreach (var file in local.GetFiles())
       {
@@ -304,6 +306,15 @@ public sealed class SshBackend : BackendBase
 
       foreach (var directory in local.GetDirectories())
          await UploadDirectory(sftp, directory, UnixJoin(remotePath, directory.Name), mode, cancellationToken).ConfigureAwait(false);
+
+      // Last, so a mode without the traverse bit cannot lock us out of the tree we are still filling.
+      ApplyMode(sftp, remotePath, mode);
+   }
+
+   private static void ApplyMode(SftpClient sftp, string remotePath, UploadMode? mode)
+   {
+      if (mode is { } uploadMode)
+         sftp.ChangePermissions(remotePath, uploadMode.PermissionDigits);
    }
 
    private static string UnixJoin(string left, string right) => $"{left.TrimEnd('/')}/{right}";
