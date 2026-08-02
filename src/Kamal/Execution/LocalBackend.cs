@@ -133,9 +133,9 @@ public sealed class LocalBackend : BackendBase
       if (mode is null || OperatingSystem.IsWindows())
          return;
 
-      var unixMode = (UnixFileMode)Convert.ToInt32(mode, 8);
+      var uploadMode = UploadMode.Parse(mode, path);
 
       if (File.Exists(path))
-         File.SetUnixFileMode(path, unixMode);
+         File.SetUnixFileMode(path, uploadMode.UnixFileMode);
    }
 }

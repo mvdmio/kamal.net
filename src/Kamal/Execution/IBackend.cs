@@ -47,9 +47,20 @@ public interface IBackend
    /// <summary>Runs a command and returns whether it exited zero (SSHKit <c>test</c>; never throws on non-zero exit).</summary>
    Task<bool> Test(object?[] command, CancellationToken cancellationToken = default);
 
-   /// <summary>Uploads a local file (or directory, with <paramref name="recursive"/>) to the remote path (SSHKit <c>upload!</c>).</summary>
+   /// <summary>
+   /// Uploads a local file (or directory, with <paramref name="recursive"/>) to the remote path
+   /// (SSHKit <c>upload!</c>). <paramref name="mode"/>, when given, is a string of octal
+   /// permission digits — optionally with a leading zero and optionally with a fourth leading
+   /// digit for setuid/setgid/sticky (<c>"0600"</c>, <c>"755"</c>, <c>"1777"</c>) — applied to
+   /// the uploaded file or, when <paramref name="recursive"/>, to the directory and everything
+   /// beneath it. Backends parse it through <see cref="Kamal.Execution.UploadMode"/> rather than
+   /// deriving their own conversion.
+   /// </summary>
    Task Upload(string localPath, string remotePath, string? mode = null, bool recursive = false, CancellationToken cancellationToken = default);
 
-   /// <summary>Uploads in-memory content to the remote path (SSHKit <c>upload! StringIO.new(...), path</c>).</summary>
+   /// <summary>
+   /// Uploads in-memory content to the remote path (SSHKit <c>upload! StringIO.new(...), path</c>).
+   /// <paramref name="mode"/> follows the same octal-digit contract as the file/directory overload.
+   /// </summary>
    Task Upload(Stream local, string remotePath, string? mode = null, CancellationToken cancellationToken = default);
 }
