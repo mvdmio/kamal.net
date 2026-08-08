@@ -1,7 +1,7 @@
 name: Deploy with Kamal.NET
 description: >
-  Install Kamal.NET (setup), configure optional SSH credentials, then run
-  `kamal deploy` with destination and passthrough arguments.
+  Runs the same setup path as actions/setup (shared install/SSH scripts), then
+  `kamal deploy` with destination, optional connect-only retry, and passthrough args.
 author: mvdmio
 
 branding:
@@ -11,18 +11,20 @@ branding:
 inputs:
   version:
     description: >
-      mvdmio.Kamal tool version to install (e.g. 2.11.1). Omit for latest stable.
+      mvdmio.Kamal tool version to install (e.g. 2.11.2). Omit for latest stable.
       Pin this to match a release tag of this repository.
     required: false
     default: ""
   dotnet-version:
-    description: .NET SDK channel or version passed to actions/setup-dotnet.
+    description: >
+      .NET SDK channel/version for actions/setup-dotnet when the job has no SDK yet
+      (suite jobs that already build with setup-dotnet can set skip-dotnet-setup).
     required: false
     default: "10.0.x"
   skip-dotnet-setup:
     description: >
-      If "true", skip actions/setup-dotnet (use when the job already installed a
-      compatible SDK).
+      If "true", skip actions/setup-dotnet. Use when the job already installed a
+      compatible SDK (common for suite pipelines that build before deploy).
     required: false
     default: "false"
   ssh-private-key:
@@ -50,10 +52,16 @@ inputs:
     required: false
     default: ""
   working-directory:
-    description: Directory containing config/deploy.yml (defaults to the job workspace root).
+    description: >
+      Directory containing config/deploy.yml (defaults to the job workspace root).
+      Required for monorepos / nested app trees.
     required: false
     default: "."
 
+# Setup composition: GitHub composite actions cannot reliably nest same-repo composites
+# via relative `uses:` when consumers reference this Action by tag. Deploy therefore
+# reuses actions/setup scripts (install.sh, configure-ssh.sh) so install/SSH cannot drift
+# from `actions/setup`, then runs deploy.sh.
 runs:
   using: composite
   steps:

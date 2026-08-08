@@ -55,7 +55,9 @@ ssh:
   # Keys
   #
   # An array of file names of private keys to use for public key
-  # and host-based authentication:
+  # and host-based authentication. When `keys` and/or `key_data` are set,
+  # Kamal fails closed if none load successfully (no fall-through to env,
+  # agent, or default identity files):
   keys: [ "~/.ssh/id.pem" ]
 
   # Key data
@@ -75,18 +77,20 @@ ssh:
   # highest priority first — the first source that yields keys is used alone
   # (lower sources are not mixed in):
   #
-  # 1. Explicit `keys` paths and `key_data` (secret names or deprecated inline PEM)
+  # 1. Explicit `keys` paths and `key_data` (secret names or deprecated inline PEM).
+  #    If either is configured, missing or unreadable keys are an auth failure
+  #    (exit 11); lower sources are not tried.
   # 2. `KAMAL_SSH_PRIVATE_KEY` environment variable (full PEM private key text)
   # 3. ssh-agent identities (`SSH_AUTH_SOCK` on Unix; OpenSSH agent pipe on Windows)
   # 4. Default `~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, `id_dsa` when nothing
-  #    above yields keys
+  #    above is configured / yields keys
   #
   # CI examples:
   # - Load a key into ssh-agent (e.g. webfactory/ssh-agent) and omit `keys`/`key_data`
   # - Or set `KAMAL_SSH_PRIVATE_KEY` to the PEM without writing a key file
   # - Or put the PEM in secrets and reference it from `key_data`
   #
-  # Wrong or missing usable credentials fail at connect time.
+  # Wrong or missing usable credentials fail as auth (class auth / exit 11).
 
   # Passphrase-protected keys
   #
@@ -98,8 +102,8 @@ ssh:
   # 2. `ssh.passphrase` — secret name (preferred) or literal value
   # 3. Interactive prompt — only when a TTY is present (not in typical CI)
   #
-  # Non-interactive runs without a passphrase fail immediately with a clear error
-  # (no hang on a prompt). Prefer unencrypted keys, ssh-agent, or
+  # Non-interactive runs without a passphrase fail immediately as an auth failure
+  # (exit 11; no hang on a prompt). Prefer unencrypted keys, ssh-agent, or
   # `KAMAL_SSH_PRIVATE_KEY` / `key_data` without a passphrase in CI.
   passphrase: SSH_KEY_PASSPHRASE
 

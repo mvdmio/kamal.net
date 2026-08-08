@@ -176,18 +176,18 @@ public static class KamalCli
       var skipPush = new Option<bool>("--skip-push", "-P") { Description = "Skip image build and push" };
       var noCache = new Option<bool>("--no-cache") { Description = "Build without using Docker's build cache" };
       // ZeroOrOne: --retry alone enables default N=3; --retry N sets attempts; omitted = off.
+      // Deploy-only (not setup): connect-class failures re-run the full deploy body.
       var retry = new Option<int?>("--retry")
       {
-         Description = "Retry on SSH connect failures only (default attempts: 3). Off when omitted. Never retries auth, build, healthcheck, or lock.",
+         Description = "Retry on SSH connect failures only (default attempts: 3). Off when omitted. Never retries auth, build, healthcheck, or lock. Re-runs the full deploy when the failure class is connect.",
          Arity = ArgumentArity.ZeroOrOne,
          HelpName = "N"
       };
 
-      var setup = new Command("setup", "Setup all accessories, push the env, and deploy app to servers") { skipPush, noCache, retry };
+      var setup = new Command("setup", "Setup all accessories, push the env, and deploy app to servers") { skipPush, noCache };
       SetAction(setup, "setup", null, (parse, context) => new MainCli(context).Setup(
          parse.GetValue(skipPush),
-         parse.GetValue(noCache),
-         connectRetryAttempts: ResolveConnectRetryAttempts(parse, retry)));
+         parse.GetValue(noCache)));
       root.Add(setup);
 
       var deploy = new Command("deploy", "Deploy app to servers") { skipPush, noCache, retry };
@@ -776,7 +776,7 @@ public static class KamalCli
    // ----- Shared action plumbing ----------------------------------------------------------------
 
    /// <summary>
-   /// Maps the deploy/setup <c>--retry [N]</c> option: omitted → 1 attempt; flag alone → 3;
+   /// Maps the deploy <c>--retry [N]</c> option: omitted → 1 attempt; flag alone → 3;
    /// flag with N → max(1, N).
    /// </summary>
    private static int ResolveConnectRetryAttempts(System.CommandLine.ParseResult parse, Option<int?> retryOption)

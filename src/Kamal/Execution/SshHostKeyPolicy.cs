@@ -201,7 +201,8 @@ internal static class SshHostKeyPolicy
                return false;
             }
 
-            // Bare hostname matches default port 22, or any port when entry has no port qualifier.
+            // Bare hostname (no [host]:port qualifier) matches that host on any port.
+            // Port-specific trust must use the bracketed [host]:port form.
             return HostEquals(pattern, host);
          }
 

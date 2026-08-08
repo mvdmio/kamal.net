@@ -19,6 +19,7 @@ public sealed class FailureClassTests
    [InlineData(typeof(LockError), FailureClass.Lock, FailureClasses.ExitLock)]
    [InlineData(typeof(HealthcheckError), FailureClass.Healthcheck, FailureClasses.ExitHealthcheck)]
    [InlineData(typeof(BootError), FailureClass.Healthcheck, FailureClasses.ExitHealthcheck)]
+   [InlineData(typeof(AuthError), FailureClass.Auth, FailureClasses.ExitAuth)]
    public void Classify_MapsKnownCliErrors(Type exceptionType, FailureClass expectedClass, int expectedExit)
    {
       var exception = (Exception)Activator.CreateInstance(exceptionType, "boom")!;

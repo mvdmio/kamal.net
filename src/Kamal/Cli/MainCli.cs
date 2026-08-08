@@ -13,30 +13,24 @@ public sealed class MainCli : CliBase
    {
    }
 
-   /// <summary>Port of <c>setup</c>.</summary>
-   /// <param name="connectRetryAttempts">
-   /// Max attempts for connect-class failures only (1 = no retry). Opt-in via <c>--retry</c>.
-   /// Nested <see cref="Deploy"/> is not re-wrapped; the outer loop covers bootstrap + deploy.
-   /// </param>
-   public Task Setup(bool skipPush = false, bool noCache = false, int connectRetryAttempts = 1)
+   /// <summary>Port of <c>setup</c>. Connect retry (<c>--retry</c>) is deploy-only, not setup.</summary>
+   public Task Setup(bool skipPush = false, bool noCache = false)
    {
-      return ConnectRetry.RunAsync(connectRetryAttempts, async () =>
-      {
-         await PrintRuntime(() =>
-            Modify(async () =>
-            {
-               Say("Ensure Docker is installed...", Magenta);
-               await new ServerCli(Context).Bootstrap().ConfigureAwait(false);
+      return PrintRuntime(() =>
+         Modify(async () =>
+         {
+            Say("Ensure Docker is installed...", Magenta);
+            await new ServerCli(Context).Bootstrap().ConfigureAwait(false);
 
-               // Nested deploy must not double-retry; outer setup loop owns connect retries.
-               await Deploy(skipPush, noCache, bootAccessories: true, connectRetryAttempts: 1).ConfigureAwait(false);
-            }, requireLock: true)).ConfigureAwait(false);
-      });
+            // Setup does not own --retry; nested deploy runs once (connectRetryAttempts: 1).
+            await Deploy(skipPush, noCache, bootAccessories: true, connectRetryAttempts: 1).ConfigureAwait(false);
+         }, requireLock: true));
    }
 
    /// <summary>Port of <c>deploy</c>.</summary>
    /// <param name="connectRetryAttempts">
    /// Max attempts for connect-class failures only (1 = no retry). Opt-in via <c>--retry</c>.
+   /// On connect-class failure the entire deploy body is re-entered (class filter, not phase resume).
    /// </param>
    public Task Deploy(bool skipPush = false, bool noCache = false, bool bootAccessories = false, int connectRetryAttempts = 1)
    {

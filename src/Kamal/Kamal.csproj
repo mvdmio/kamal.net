@@ -15,7 +15,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>kamal</ToolCommandName>
     <PackageId>mvdmio.Kamal</PackageId>
-    <Version>2.11.1</Version>
+    <Version>2.11.2</Version>
     <Authors>Michiel van der Meer</Authors>
     <Description>Deploy web apps anywhere — a .NET port of Kamal (basecamp/kamal), installable as a dotnet tool. No Ruby required.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

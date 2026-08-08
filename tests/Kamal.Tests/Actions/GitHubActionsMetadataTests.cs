@@ -35,9 +35,13 @@ public class GitHubActionsMetadataTests
       Assert.Contains("working-directory:", yaml);
       Assert.Contains("ssh-private-key:", yaml);
       Assert.Contains("version:", yaml);
+      Assert.Contains("dotnet-version:", yaml);
+      Assert.Contains("skip-dotnet-setup:", yaml);
+      // Same setup path as actions/setup (shared scripts — nested composite uses is unreliable by tag).
       Assert.Contains("../setup/install.sh", yaml);
       Assert.Contains("../setup/configure-ssh.sh", yaml);
       Assert.Contains("deploy.sh", yaml);
+      Assert.Contains("reuses actions/setup scripts", yaml);
    }
 
    [Fact]

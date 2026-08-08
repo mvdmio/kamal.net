@@ -118,7 +118,7 @@ public sealed class Ssh
 
       var list = RubyHelpers.AsList(raw) ?? [raw];
       return list
-         .Select(entry => ExpandHome(RubyHelpers.RubyToS(entry)))
+         .Select(entry => KamalUtils.ExpandHome(RubyHelpers.RubyToS(entry)))
          .Where(path => path.Length > 0)
          .ToList();
    }
@@ -149,16 +149,6 @@ public sealed class Ssh
 
          return Compact(options);
       }
-   }
-
-   private static string ExpandHome(string path)
-   {
-      if (path.StartsWith("~/", StringComparison.Ordinal) || path == "~")
-         return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            path.TrimStart('~', '/', '\\'));
-
-      return path;
    }
 
    public OrderedDictionary<string, object?> ToH()

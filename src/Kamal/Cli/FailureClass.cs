@@ -21,7 +21,7 @@ public enum FailureClass
 }
 
 /// <summary>
-/// Named deploy stages logged as <c>kamal.phase=…</c>, separate from failure classes.
+/// Named deploy phases logged as <c>kamal.phase=…</c>, separate from failure classes.
 /// </summary>
 public static class DeployPhase
 {
@@ -46,26 +46,29 @@ public static class FailureClasses
    public const int ExitHealthcheck = 30;
    public const int ExitLock = 40;
 
-   /// <summary>Stable lowercase name used in markers and docs.</summary>
-   public static string Name(FailureClass failureClass) => failureClass switch
+   /// <summary>
+   /// Single metadata table for name, exit code, and aggregation specificity.
+   /// Adding a class here keeps Name/ExitCode/Specificity in lockstep.
+   /// </summary>
+   private static readonly Dictionary<FailureClass, FailureClassInfo> Info = new()
    {
-      FailureClass.Connect => "connect",
-      FailureClass.Auth => "auth",
-      FailureClass.Build => "build",
-      FailureClass.Healthcheck => "healthcheck",
-      FailureClass.Lock => "lock",
-      _ => "generic"
+      [FailureClass.Generic] = new("generic", ExitGeneric, Specificity: 0),
+      [FailureClass.Connect] = new("connect", ExitConnect, Specificity: 10),
+      [FailureClass.Auth] = new("auth", ExitAuth, Specificity: 50),
+      [FailureClass.Build] = new("build", ExitBuild, Specificity: 20),
+      [FailureClass.Healthcheck] = new("healthcheck", ExitHealthcheck, Specificity: 30),
+      [FailureClass.Lock] = new("lock", ExitLock, Specificity: 40)
    };
 
-   public static int ExitCode(FailureClass failureClass) => failureClass switch
-   {
-      FailureClass.Connect => ExitConnect,
-      FailureClass.Auth => ExitAuth,
-      FailureClass.Build => ExitBuild,
-      FailureClass.Healthcheck => ExitHealthcheck,
-      FailureClass.Lock => ExitLock,
-      _ => ExitGeneric
-   };
+   private readonly record struct FailureClassInfo(string Name, int ExitCode, int Specificity);
+
+   private static FailureClassInfo Meta(FailureClass failureClass) =>
+      Info.TryGetValue(failureClass, out var info) ? info : Info[FailureClass.Generic];
+
+   /// <summary>Stable lowercase name used in markers and docs.</summary>
+   public static string Name(FailureClass failureClass) => Meta(failureClass).Name;
+
+   public static int ExitCode(FailureClass failureClass) => Meta(failureClass).ExitCode;
 
    /// <summary>Greppable failure-class marker line, e.g. <c>kamal.failure_class=lock</c>.</summary>
    public static string Marker(FailureClass failureClass) => $"kamal.failure_class={Name(failureClass)}";
@@ -97,6 +100,7 @@ public static class FailureClasses
             case HealthcheckError:
             case BootError:
                return FailureClass.Healthcheck;
+            case AuthError:
             case SshAuthenticationException:
             case SshPassPhraseNullOrEmptyException:
                return FailureClass.Auth;
@@ -174,15 +178,7 @@ public static class FailureClasses
    }
 
    /// <summary>Higher wins when aggregating multi-host failures (auth over connect, etc.).</summary>
-   private static int Specificity(FailureClass failureClass) => failureClass switch
-   {
-      FailureClass.Auth => 50,
-      FailureClass.Lock => 40,
-      FailureClass.Healthcheck => 30,
-      FailureClass.Build => 20,
-      FailureClass.Connect => 10,
-      _ => 0
-   };
+   private static int Specificity(FailureClass failureClass) => Meta(failureClass).Specificity;
 
    private static bool LooksLikeAuth(ExecuteError error)
    {

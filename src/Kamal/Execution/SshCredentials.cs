@@ -1,4 +1,5 @@
 using System.Text;
+using Kamal.Cli;
 using Kamal.Configuration;
 using Kamal.Utils;
 using Renci.SshNet;
@@ -90,18 +91,36 @@ internal static class SshCredentials
    {
       var user = userOverride ?? ssh.User;
       var credentials = Resolve(ssh, loadOptions);
-      var methods = new List<AuthenticationMethod>();
+      return CreateConnectionInfo(host, port, user, credentials.Keys);
+   }
 
-      if (credentials.Keys.Count > 0)
-         methods.Add(new PrivateKeyAuthenticationMethod(user, credentials.Keys.ToArray()));
-
-      // Password auth is out of scope; keep "none" as a last method so failures surface as auth errors.
-      methods.Add(new NoneAuthenticationMethod(user));
-
-      return new ConnectionInfo(host, port, user, methods.ToArray())
+   /// <summary>Builds <see cref="ConnectionInfo"/> from already-resolved private key sources.</summary>
+   internal static ConnectionInfo CreateConnectionInfo(
+      string host,
+      int port,
+      string user,
+      IReadOnlyList<IPrivateKeySource> keys)
+   {
+      var methods = BuildAuthenticationMethods(user, keys);
+      return new ConnectionInfo(host, port, user, methods)
       {
          Timeout = TimeSpan.FromSeconds(30)
       };
+   }
+
+   /// <summary>Authentication methods: private keys when present, then "none" so failures surface as auth errors.</summary>
+   internal static AuthenticationMethod[] BuildAuthenticationMethods(
+      string user,
+      IReadOnlyList<IPrivateKeySource> keys)
+   {
+      var methods = new List<AuthenticationMethod>();
+
+      if (keys.Count > 0)
+         methods.Add(new PrivateKeyAuthenticationMethod(user, keys.ToArray()));
+
+      // Password auth is out of scope; keep "none" as a last method so failures surface as auth errors.
+      methods.Add(new NoneAuthenticationMethod(user));
+      return methods.ToArray();
    }
 
    /// <summary>
@@ -109,14 +128,26 @@ internal static class SshCredentials
    /// then <see cref="PrivateKeyEnvironmentVariable"/> if set, then ssh-agent identities,
    /// then default identity files. Higher-priority sources that yield keys exclude lower ones
    /// (no mixing), matching <c>keys_only</c> intent for agent identities when explicit keys are used.
+   /// Explicit <c>ssh.keys</c>/<c>key_data</c> fail closed when configured but none load.
    /// </summary>
    public static SshCredentialSet Resolve(Ssh ssh, SshCredentialLoadOptions? loadOptions = null)
    {
       var passphraseState = new PassphraseState(ssh, loadOptions);
 
-      var configured = LoadConfiguredKeyFiles(ssh, passphraseState);
-      if (configured.Count > 0)
+      if (HasExplicitConfiguredCredentials(ssh))
+      {
+         var configured = LoadConfiguredKeyFiles(ssh, passphraseState);
+         if (configured.Count == 0)
+         {
+            throw new AuthError(
+               "Configured ssh.keys / ssh.key_data did not yield any usable private keys. "
+               + "Check that key paths exist and are readable, and that key_data secrets resolve. "
+               + "Kamal does not fall through to KAMAL_SSH_PRIVATE_KEY, ssh-agent, or default "
+               + "identity files when explicit keys or key_data are configured.");
+         }
+
          return new SshCredentialSet(SshCredentialSource.Configured, configured);
+      }
 
       var envPem = (loadOptions?.GetEnvironmentPrivateKey ?? GetEnvironmentPrivateKey)();
       if (!string.IsNullOrWhiteSpace(envPem))
@@ -145,6 +176,17 @@ internal static class SshCredentials
       return new SshCredentialSet(SshCredentialSource.None, []);
    }
 
+   /// <summary>True when the operator set non-empty <c>ssh.keys</c> and/or <c>ssh.key_data</c>.</summary>
+   internal static bool HasExplicitConfiguredCredentials(Ssh ssh)
+   {
+      var keys = RubyHelpers.AsList(ssh.Keys);
+      if (keys is { Count: > 0 })
+         return true;
+
+      var keyData = ssh.KeyData;
+      return keyData is { Count: > 0 };
+   }
+
    private static string? GetEnvironmentPrivateKey() =>
       Environment.GetEnvironmentVariable(PrivateKeyEnvironmentVariable);
 
@@ -157,10 +199,12 @@ internal static class SshCredentials
 
       foreach (var key in RubyHelpers.AsList(ssh.Keys) ?? [])
       {
-         var path = ExpandHome(RubyHelpers.RubyToS(key));
+         var path = KamalUtils.ExpandHome(RubyHelpers.RubyToS(key));
 
-         if (File.Exists(path))
-            keyFiles.Add(LoadKeyFile(path, path, passphraseState, required: true));
+         if (!File.Exists(path))
+            continue;
+
+         keyFiles.Add(LoadKeyFile(path, path, passphraseState, required: true));
       }
 
       foreach (var keyData in ssh.KeyData ?? [])
@@ -211,14 +255,14 @@ internal static class SshCredentials
          }
          catch (SshException exception)
          {
-            throw new InvalidOperationException(
+            throw new AuthError(
                $"Failed to decrypt {description}: incorrect passphrase or corrupt key. {exception.Message}",
                exception);
          }
       }
       catch (SshException exception) when (required)
       {
-         throw new InvalidOperationException(
+         throw new AuthError(
             $"Failed to load {description}: {exception.Message}",
             exception);
       }
@@ -261,7 +305,7 @@ internal static class SshCredentials
          {
             keyFiles.Add(LoadKeyFile(path, path, passphraseState, required: false));
          }
-         catch (InvalidOperationException) when (passphraseState.LastFailureWasMissingPassphrase)
+         catch (AuthError) when (passphraseState.LastFailureWasMissingPassphrase)
          {
             encryptedWithoutPassphrase.Add(path);
          }
@@ -273,7 +317,7 @@ internal static class SshCredentials
 
       if (keyFiles.Count == 0 && encryptedWithoutPassphrase.Count > 0)
       {
-         throw new InvalidOperationException(
+         throw new AuthError(
             MissingPassphraseMessage(string.Join(", ", encryptedWithoutPassphrase)));
       }
 
@@ -285,14 +329,6 @@ internal static class SshCredentials
       + $"Set {PassphraseEnvironmentVariable}, configure ssh.passphrase (secret name or value), "
       + "or run interactively with a TTY so a passphrase can be prompted. "
       + "CI should use ssh-agent, unencrypted keys, key_data, or KAMAL_SSH_PRIVATE_KEY without a passphrase.";
-
-   private static string ExpandHome(string path)
-   {
-      if (path.StartsWith("~/", StringComparison.Ordinal) || path == "~")
-         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), path.TrimStart('~', '/', '\\'));
-
-      return path;
-   }
 
    /// <summary>Resolves and caches a passphrase for the current credential resolution.</summary>
    private sealed class PassphraseState
@@ -367,7 +403,7 @@ internal static class SshCredentials
          }
 
          LastFailureWasMissingPassphrase = true;
-         throw new InvalidOperationException(MissingPassphraseMessage(keyDescription));
+         throw new AuthError(MissingPassphraseMessage(keyDescription));
       }
 
       private static bool IsInteractiveConsole() =>

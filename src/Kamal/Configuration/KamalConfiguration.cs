@@ -12,7 +12,7 @@ namespace Kamal.Configuration;
 public sealed partial class KamalConfiguration
 {
    /// <summary>The Kamal version this port tracks (<c>Kamal::VERSION</c>).</summary>
-   public const string KamalVersion = "2.11.1";
+   public const string KamalVersion = "2.11.2";
 
    public static readonly string[] HooksOutputLevels = ["quiet", "verbose"];
 

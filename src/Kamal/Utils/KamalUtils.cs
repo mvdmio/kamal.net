@@ -385,4 +385,18 @@ public static partial class KamalUtils
       regex.Append('$');
       return Regex.IsMatch(value, regex.ToString());
    }
+
+   /// <summary>
+   /// Expands a leading <c>~</c> or <c>~/…</c> path to the current user's home directory.
+   /// Other paths are returned unchanged.
+   /// </summary>
+   public static string ExpandHome(string path)
+   {
+      if (path.StartsWith("~/", StringComparison.Ordinal) || path == "~")
+         return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            path.TrimStart('~', '/', '\\'));
+
+      return path;
+   }
 }

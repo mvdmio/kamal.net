@@ -9,6 +9,45 @@ reserved for changes to the port itself.
 
 ## [Unreleased]
 
+## [2.11.2] - 2026-08-08
+
+### Added
+
+- **SSH credential sources for CI** — authenticate via ssh-agent, the
+  `KAMAL_SSH_PRIVATE_KEY` environment variable (PEM), or existing `ssh.keys` /
+  `ssh.key_data`. Priority is explicit config first, then the env key, then the
+  agent, then default `~/.ssh/id_*` files. When `ssh.keys` / `ssh.key_data` are
+  configured, missing or unreadable keys fail closed as auth (no silent fall-
+  through to lower sources).
+- **Passphrase-protected private keys** — load encrypted keys with
+  `KAMAL_SSH_PASSPHRASE`, `ssh.passphrase` (secret name or value), or an
+  interactive TTY prompt. Non-interactive runs without a passphrase fail as
+  **auth** (exit 11) instead of hanging or classifying as generic.
+- **Opt-in strict host-key checking** — `ssh.strict_host_key_checking` verifies
+  remotes against OpenSSH `known_hosts` (optional `ssh.known_hosts` paths).
+  Default remains permissive.
+- **Config expansion** — after YAML load (base + destination merge), expand
+  `${ENV_VAR}` and `${ENV_VAR:-default}` in every string scalar from the process
+  environment. Bare `${VAR}` with `VAR` unset is a config load error. Not full
+  ERB; secrets stay name-references.
+- **Failure classes and exit codes** — stable process exits and greppable
+  markers: generic (1), connect (10), auth (11), build (20), healthcheck (30),
+  lock (40), plus separate deploy phase markers (`kamal.phase=…`).
+- **Connect-only deploy retry** — `kamal deploy --retry [N]` (default N=3 when
+  the flag is present). Retries only connect-class failures by re-running the
+  full deploy body; never auth, build, healthcheck, or lock. Off by default;
+  not offered on `setup`.
+- **GitHub Actions** — `actions/setup` (install pin-able tool + optional SSH)
+  and `actions/deploy` (same setup scripts, then `kamal deploy` with
+  destination, retry, and working-directory). See `kamal docs ci`.
+- **`accessory exec` end-of-options** — flags after `--` go to the remote
+  command with argv preserved (e.g. guest `-c`).
+
+### Changed
+
+- **SSH / CI docs** — `kamal docs ci` and `kamal docs ssh` cover credential
+  order, expansion and ERB migration, failure codes, retry, and Action usage.
+
 ## [2.11.1] - 2026-08-02
 
 ### Fixed
@@ -82,6 +121,7 @@ dotnet tool install -g mvdmio.Kamal
   a note.
 - `-h` is `--hosts` (as upstream); use `--help` or `-?` for help.
 
-[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.11.1...HEAD
+[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.11.2...HEAD
+[2.11.2]: https://github.com/mvdmio/kamal.net/compare/v2.11.1...v2.11.2
 [2.11.1]: https://github.com/mvdmio/kamal.net/compare/v2.11.0...v2.11.1
 [2.11.0]: https://github.com/mvdmio/kamal.net/releases/tag/v2.11.0

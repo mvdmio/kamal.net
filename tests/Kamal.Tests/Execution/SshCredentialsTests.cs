@@ -1,4 +1,5 @@
 using System.Text;
+using Kamal.Cli;
 using Kamal.Configuration;
 using Kamal.Execution;
 using Kamal.Tests.Configuration;
@@ -170,14 +171,30 @@ public class SshCredentialsTests
    }
 
    [Fact]
-   public void MissingConfiguredKeyFileDoesNotBlockEnvKey()
+   public void MissingConfiguredKeyFileFailsClosed_DoesNotFallThroughToEnvKey()
    {
       var ssh = NewSsh(new Cfg { ["keys"] = L("/nonexistent/kamal-missing-key") });
       var options = IsolatedOptions(envKey: TestPrivateKeyPem, agentKeys: [], defaultKeys: []);
 
-      var resolved = SshCredentials.Resolve(ssh, options);
+      var ex = Assert.Throws<AuthError>(() => SshCredentials.Resolve(ssh, options));
 
-      Assert.Equal(SshCredentialSource.EnvironmentKey, resolved.Source);
+      Assert.Contains("ssh.keys", ex.Message, StringComparison.OrdinalIgnoreCase);
+      Assert.Contains("fall through", ex.Message, StringComparison.OrdinalIgnoreCase);
+      Assert.Equal(FailureClass.Auth, FailureClasses.Classify(ex));
+      Assert.Equal(FailureClasses.ExitAuth, FailureClasses.ExitCode(FailureClass.Auth));
+   }
+
+   [Fact]
+   public void MissingConfiguredKeyFileFailsClosed_DoesNotFallThroughToAgentOrDefaults()
+   {
+      var ssh = NewSsh(new Cfg { ["keys"] = L("/nonexistent/kamal-missing-key") });
+      var options = IsolatedOptions(
+         envKey: null,
+         agentKeys: [LoadPem(TestPrivateKeyPem)],
+         defaultKeys: [LoadPem(AlternatePrivateKeyPem)]);
+
+      var ex = Assert.Throws<AuthError>(() => SshCredentials.Resolve(ssh, options));
+      Assert.Equal(FailureClass.Auth, FailureClasses.Classify(ex));
    }
 
    [Fact]
@@ -219,16 +236,18 @@ public class SshCredentialsTests
    }
 
    [Fact]
-   public void EncryptedConfiguredKeyWithoutPassphraseNonInteractiveFailsClearly()
+   public void EncryptedConfiguredKeyWithoutPassphraseNonInteractiveFailsClearlyAsAuth()
    {
       var ssh = NewSsh(new Cfg { ["key_data"] = L(EncryptedPrivateKeyPem) });
       var options = IsolatedOptions(passphrase: null, interactive: false);
 
-      var ex = Assert.Throws<InvalidOperationException>(() => SshCredentials.Resolve(ssh, options));
+      var ex = Assert.Throws<AuthError>(() => SshCredentials.Resolve(ssh, options));
 
       Assert.Contains("encrypted", ex.Message, StringComparison.OrdinalIgnoreCase);
       Assert.Contains(SshCredentials.PassphraseEnvironmentVariable, ex.Message);
       Assert.DoesNotContain("silently", ex.Message, StringComparison.OrdinalIgnoreCase);
+      Assert.Equal(FailureClass.Auth, FailureClasses.Classify(ex));
+      Assert.Equal(FailureClasses.ExitAuth, FailureClasses.ExitCode(FailureClasses.Classify(ex)));
    }
 
    [Fact]
@@ -241,8 +260,9 @@ public class SshCredentialsTests
          passphrase: null,
          interactive: false);
 
-      var ex = Assert.Throws<InvalidOperationException>(() => SshCredentials.Resolve(ssh, options));
+      var ex = Assert.Throws<AuthError>(() => SshCredentials.Resolve(ssh, options));
       Assert.Contains(SshCredentials.PassphraseEnvironmentVariable, ex.Message);
+      Assert.Equal(FailureClass.Auth, FailureClasses.Classify(ex));
    }
 
    [Fact]

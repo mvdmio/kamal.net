@@ -39,3 +39,18 @@ public sealed class BuildError : Exception
    {
    }
 }
+
+/// <summary>
+/// SSH credential / authentication failure (missing passphrase, unreadable configured keys,
+/// explicit keys that do not load). Maps to <see cref="FailureClass.Auth"/> (exit 11).
+/// </summary>
+public sealed class AuthError : Exception
+{
+   public AuthError(string message) : base(message)
+   {
+   }
+
+   public AuthError(string message, Exception innerException) : base(message, innerException)
+   {
+   }
+}

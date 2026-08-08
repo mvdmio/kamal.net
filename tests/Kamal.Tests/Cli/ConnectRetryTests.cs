@@ -7,8 +7,8 @@ using Renci.SshNet.Common;
 namespace Kamal.Tests.Cli;
 
 /// <summary>
-/// Opt-in connect-only deploy/setup retry (spec step 05): off by default, <c>--retry [N]</c>,
-/// connect retried up to N with backoff; auth/build/healthcheck/lock never retried.
+/// Opt-in connect-only deploy retry (spec step 05): off by default, <c>--retry [N]</c>,
+/// connect-class failures re-run full deploy up to N with backoff; auth/build/healthcheck/lock never retried.
 /// </summary>
 [Collection("kamal-config")]
 public sealed class ConnectRetryTests : IDisposable

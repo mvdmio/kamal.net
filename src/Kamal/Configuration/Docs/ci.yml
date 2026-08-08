@@ -16,12 +16,12 @@
 # ```shell
 # dotnet tool install -g mvdmio.Kamal
 # # or pin a release:
-# dotnet tool install -g mvdmio.Kamal --version 2.11.1
+# dotnet tool install -g mvdmio.Kamal --version 2.11.2
 # ```
 #
 # The `kamal` command is on PATH when `~/.dotnet/tools` is (dotnet tools default).
 # Prefer pinning the same version in CI and locally. Release tags of this repository
-# (`v2.11.1`, …) match the package version; use that tag when referencing the Actions.
+# (`v2.11.2`, …) match the package version; use that tag when referencing the Actions.
 
 # SSH authentication
 #
@@ -131,13 +131,14 @@
 
 # Connect-only deploy retry
 #
-# Opt-in. Off by default (one attempt). Retries only **connect** failures with exponential
-# backoff; never retries auth, build, healthcheck, lock, or generic failures.
+# Opt-in on `kamal deploy` only (not setup). Off by default (one attempt). Retries only
+# failures whose **class** is connect, with exponential backoff — never auth, build,
+# healthcheck, lock, or generic. A connect-class retry re-runs the full deploy body
+# (class filter, not phase-level resume of only connect).
 #
 # ```shell
 # kamal deploy --retry        # up to 3 attempts (default N when flag is present)
 # kamal deploy --retry 5      # up to 5 attempts
-# kamal setup -d auth --retry # same flag on setup
 # ```
 #
 # Exhausted connect failures still exit 10 with `kamal.failure_class=connect`.
@@ -149,7 +150,8 @@
 # - `mvdmio/kamal.net/actions/setup@vX.Y.Z` — install tool, PATH, optional SSH key
 # - `mvdmio/kamal.net/actions/deploy@vX.Y.Z` — setup, then `kamal deploy`
 #
-# Reference them at a version tag that matches the tool version you pin (e.g. `@v2.11.1`).
+# Reference them at a version tag that matches the tool version you pin (e.g. `@v2.11.2`).
+# The deploy Action reuses the same install/SSH scripts as setup so those paths cannot drift.
 #
 # ## Setup only (non-deploy commands)
 #
@@ -159,9 +161,9 @@
 #     runs-on: ubuntu-latest
 #     steps:
 #       - uses: actions/checkout@v4
-#       - uses: mvdmio/kamal.net/actions/setup@v2.11.1
+#       - uses: mvdmio/kamal.net/actions/setup@v2.11.2
 #         with:
-#           version: 2.11.1
+#           version: 2.11.2
 #           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 #       - run: kamal app details -d auth
 # ```
@@ -174,9 +176,9 @@
 #     runs-on: ubuntu-latest
 #     steps:
 #       - uses: actions/checkout@v4
-#       - uses: mvdmio/kamal.net/actions/deploy@v2.11.1
+#       - uses: mvdmio/kamal.net/actions/deploy@v2.11.2
 #         with:
-#           version: 2.11.1
+#           version: 2.11.2
 #           destination: auth
 #           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 #           retry: "3"
@@ -193,9 +195,9 @@
 #   - uses: webfactory/ssh-agent@v0.9.0
 #     with:
 #       ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-#   - uses: mvdmio/kamal.net/actions/deploy@v2.11.1
+#   - uses: mvdmio/kamal.net/actions/deploy@v2.11.2
 #     with:
-#       version: 2.11.1
+#       version: 2.11.2
 #       destination: web
 #       # omit ssh-private-key — agent identities are used when no higher source is set
 # ```

@@ -2,6 +2,7 @@ name: Setup Kamal.NET
 description: >
   Install a pin-able mvdmio.Kamal (kamal) version, put it on PATH, and optionally
   configure SSH from a private-key input. Usable alone for non-deploy kamal commands.
+  The deploy Action reuses the same install.sh and configure-ssh.sh so install/SSH stay aligned.
 author: mvdmio
 
 branding:
@@ -11,18 +12,20 @@ branding:
 inputs:
   version:
     description: >
-      mvdmio.Kamal tool version to install (e.g. 2.11.1). Omit to install the latest
+      mvdmio.Kamal tool version to install (e.g. 2.11.2). Omit to install the latest
       stable version from NuGet. Pin this to match a release tag of this repository.
     required: false
     default: ""
   dotnet-version:
-    description: .NET SDK channel or version passed to actions/setup-dotnet.
+    description: >
+      .NET SDK channel/version for actions/setup-dotnet when the job has no SDK yet
+      (suite jobs that already build with setup-dotnet can set skip-dotnet-setup).
     required: false
     default: "10.0.x"
   skip-dotnet-setup:
     description: >
-      If "true", skip actions/setup-dotnet (use when the job already installed a
-      compatible SDK).
+      If "true", skip actions/setup-dotnet. Use when the job already installed a
+      compatible SDK (common for suite pipelines that build before deploy).
     required: false
     default: "false"
   ssh-private-key:

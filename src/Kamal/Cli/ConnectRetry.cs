@@ -1,10 +1,12 @@
 namespace Kamal.Cli;
 
 /// <summary>
-/// Opt-in connect-only retry for deploy/setup. Off by default (single attempt). When enabled,
-/// re-runs the action only for <see cref="FailureClass.Connect"/> failures, with exponential
-/// backoff between attempts. Auth, build, healthcheck, lock, and generic failures are never
-/// retried.
+/// Opt-in connect-only retry for <c>kamal deploy</c>. Off by default (single attempt). When
+/// enabled, re-runs the full deploy action when the failure <em>class</em> is
+/// <see cref="FailureClass.Connect"/>, with exponential backoff between attempts.
+/// “Connect-only” means a class filter (never auth/build/healthcheck/lock/generic) — not
+/// phase-level resume of only the connect phase. Auth, build, healthcheck, lock, and generic
+/// failures are never retried.
 /// </summary>
 public static class ConnectRetry
 {
