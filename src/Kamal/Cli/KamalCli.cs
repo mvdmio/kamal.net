@@ -301,7 +301,13 @@ public static class KamalCli
       accessory.Add(details);
 
       var execName = NameArg();
-      var execCmd = new Argument<string[]>("cmd") { Arity = ArgumentArity.ZeroOrMore, Description = "Command to execute" };
+      // After end-of-options (--), tokens (including short options like -c) stay in cmd rather
+      // than binding recursive globals such as -c/--config-file. Prefer: accessory exec NAME -- CMD...
+      var execCmd = new Argument<string[]>("cmd")
+      {
+         Arity = ArgumentArity.ZeroOrMore,
+         Description = "Command to execute (use -- before guest flags, e.g. -- sh -c '…')"
+      };
       var execInteractive = new Option<bool>("--interactive", "-i") { Description = "Execute command over ssh for an interactive shell (use for console/bash)" };
       var execReuse = new Option<bool>("--reuse") { Description = "Reuse currently running container instead of starting a new one" };
       var exec = new Command("exec", "Execute a custom command on servers within the accessory container (use --help to show options)") { execName, execCmd, execInteractive, execReuse };

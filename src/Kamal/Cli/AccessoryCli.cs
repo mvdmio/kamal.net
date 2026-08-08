@@ -200,12 +200,19 @@ public sealed class AccessoryCli : CliBase
       }
    }
 
-   /// <summary>Port of <c>exec NAME [CMD...]</c>.</summary>
+   /// <summary>
+   /// Port of <c>exec NAME [CMD...]</c>.
+   /// Remote argv is passed as separate shell-escaped tokens so multi-word arguments
+   /// and flags after <c>--</c> (for example guest <c>-c</c>) keep their boundaries.
+   /// </summary>
    public async Task Exec(string name, string[] cmd, bool interactive = false, bool reuse = false)
    {
       await PreConnectIfRequired().ConfigureAwait(false);
 
-      var command = new object[] { KamalUtils.JoinCommands(cmd) };
+      // Do not JoinCommands: space-joining re-splits multi-word args on the remote shell.
+      // Escape each token so JoinTokens/SSH keeps intended argv boundaries.
+      var command = cmd.Select(static arg => (object)KamalUtils.EscapeShellValue(arg)).ToArray();
+      var cmdLabel = string.Join(" ", cmd);
       var quiet = Options.Quiet;
 
       await WithAccessory(name, async (accessory, hosts) =>
@@ -226,7 +233,7 @@ public sealed class AccessoryCli : CliBase
             Say("Launching command from existing container...", Magenta);
             await On(hosts, async backend =>
             {
-               await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{command[0]}' on {name} accessory"), verbosity: Verbosity.Debug).ConfigureAwait(false);
+               await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{cmdLabel}' on {name} accessory"), verbosity: Verbosity.Debug).ConfigureAwait(false);
                PutsByHost(backend.Host, await backend.CaptureWithInfo(accessory.ExecuteInExistingContainer(command)).ConfigureAwait(false), quiet: quiet);
             }).ConfigureAwait(false);
          }
@@ -236,7 +243,7 @@ public sealed class AccessoryCli : CliBase
             await On(hosts, async backend =>
             {
                await ExecuteRegistryLogin(backend).ConfigureAwait(false);
-               await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{command[0]}' on {name} accessory"), verbosity: Verbosity.Debug).ConfigureAwait(false);
+               await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{cmdLabel}' on {name} accessory"), verbosity: Verbosity.Debug).ConfigureAwait(false);
                PutsByHost(backend.Host, await backend.CaptureWithInfo(accessory.ExecuteInNewContainer(command)).ConfigureAwait(false), quiet: quiet);
             }).ConfigureAwait(false);
          }

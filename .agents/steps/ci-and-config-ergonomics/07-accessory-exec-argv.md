@@ -1,6 +1,6 @@
 # 07 — accessory exec end-of-options and intact remote argv
 
-Status: pending
+Status: done
 
 ## What to build
 
@@ -25,7 +25,11 @@ Projects: `src/Kamal`, `tests/Kamal.Tests`
 
 ## Acceptance criteria
 
-- [ ] After `--`, tokens such as `-c` stay in the remote command rather than binding as Kamal options
-- [ ] Multi-word remote commands preserve intended argv boundaries (no re-split damage)
-- [ ] Global config-file `-c` still works for scripts that use it outside end-of-options
-- [ ] Tests assert parse/invoke and remote argv shape; `dotnet test` green
+- [x] After `--`, tokens such as `-c` stay in the remote command rather than binding as Kamal options
+- [x] Multi-word remote commands preserve intended argv boundaries (no re-split damage)
+- [x] Global config-file `-c` still works for scripts that use it outside end-of-options
+- [x] Tests assert parse/invoke and remote argv shape; `dotnet test` green
+
+## Outcome
+
+`accessory exec` remote argv: stopped using `JoinCommands` (space-join re-split multi-word guest args on the remote shell). Each cmd token is `EscapeShellValue`’d and passed as a separate token into `ExecuteInExistingContainer` / `ExecuteInNewContainer`, so e.g. `sh -c "SELECT 1"` becomes `docker … "sh" "-c" "SELECT 1"`. System.CommandLine already stops option parsing at `--`; documented on the `cmd` argument help. Global recursive `-c`/`--config-file` unchanged when used outside end-of-options. Tests: parse tree (guest `-c` after `--`, bare `-c` still binds config-file, global `-c staging.yml` + `--`), invoke harness remote command shape for reuse and new-container paths. No change needed to `Commands/Accessory.cs` builders (already flatten multi-token argv). `JoinCommands` left as Ruby-compatible helper for app/server exec. `dotnet test`: 841 passed. Footprint matched.

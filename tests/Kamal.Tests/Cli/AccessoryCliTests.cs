@@ -97,4 +97,36 @@ public sealed class AccessoryCliTests
 
       Assert.Contains("mysql ready", harness.Output);
    }
+
+   [Fact]
+   public async Task ExecAfterEndOfOptionsKeepsGuestFlagsInRemoteArgv()
+   {
+      using var harness = new CliTestHarness(DeployWithAccessory);
+
+      // Without --, recursive -c binds as config-file; after --, -c stays in remote argv.
+      var exitCode = await harness.Run(
+         "accessory", "exec", "mysql", "--reuse", "--", "sh", "-c", "SELECT 1");
+
+      Assert.Equal(0, exitCode);
+      Assert.Contains("Launching command from existing container...", harness.Output);
+
+      var remote = Assert.Single(harness.CommandsOn("1.1.1.3"), command => command.Contains("docker exec"));
+      Assert.Contains("docker exec app-mysql", remote);
+      // Shell-escaped tokens preserve multi-word argv (SELECT 1) and the guest -c flag.
+      Assert.Contains("\"sh\" \"-c\" \"SELECT 1\"", remote);
+   }
+
+   [Fact]
+   public async Task ExecMultiWordArgvPreservesBoundariesInNewContainer()
+   {
+      using var harness = new CliTestHarness(DeployWithAccessory);
+
+      var exitCode = await harness.Run(
+         "accessory", "exec", "mysql", "--", "sh", "-c", "echo hello world");
+
+      Assert.Equal(0, exitCode);
+
+      var remote = Assert.Single(harness.CommandsOn("1.1.1.3"), command => command.Contains("docker run") && command.Contains("mysql:8.0"));
+      Assert.Contains("\"sh\" \"-c\" \"echo hello world\"", remote);
+   }
 }

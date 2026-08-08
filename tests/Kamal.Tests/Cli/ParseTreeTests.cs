@@ -1,3 +1,4 @@
+using System.CommandLine;
 using Kamal.Cli;
 
 namespace Kamal.Tests.Cli;
@@ -29,6 +30,7 @@ public sealed class ParseTreeTests
       "accessory restart db",
       "accessory details all",
       "accessory exec db ls -i --reuse",
+      "accessory exec db -- sh -c SELECT",
       "accessory logs db --since 1h --lines 10 --grep foo --follow --skip-timestamps",
       "accessory pull_image db",
       "accessory remove db -y",
@@ -131,4 +133,48 @@ public sealed class ParseTreeTests
 
       Assert.NotEmpty(parseResult.Errors);
    }
+
+   [Fact]
+   public void AccessoryExecEndOfOptionsKeepsGuestDashCInCmd()
+   {
+      var root = KamalCli.BuildRootCommand();
+      var parseResult = root.Parse("accessory exec db -- sh -c SELECT");
+
+      Assert.Empty(parseResult.Errors);
+      Assert.Equal(["sh", "-c", "SELECT"], GetExecCmd(parseResult));
+   }
+
+   [Fact]
+   public void AccessoryExecWithoutEndOfOptionsBindsDashCAsConfigFile()
+   {
+      var root = KamalCli.BuildRootCommand();
+      // Recursive global -c/--config-file still wins when not protected by --.
+      var parseResult = root.Parse("accessory exec db sh -c other.yml");
+
+      Assert.Empty(parseResult.Errors);
+      Assert.Equal(["sh"], GetExecCmd(parseResult));
+      Assert.Equal("other.yml", parseResult.GetValue(ConfigFileOption(root)));
+   }
+
+   [Fact]
+   public void AccessoryExecGlobalConfigFileStillWorksWithEndOfOptions()
+   {
+      var root = KamalCli.BuildRootCommand();
+      var parseResult = root.Parse("-c staging.yml accessory exec db -- sh -c SELECT");
+
+      Assert.Empty(parseResult.Errors);
+      Assert.Equal("staging.yml", parseResult.GetValue(ConfigFileOption(root)));
+      Assert.Equal(["sh", "-c", "SELECT"], GetExecCmd(parseResult));
+   }
+
+   private static string[] GetExecCmd(ParseResult parseResult)
+   {
+      var cmdArg = parseResult.CommandResult.Command.Arguments.OfType<Argument<string[]>>()
+         .Single(a => a.Name is "cmd" or "CMD");
+      return parseResult.GetValue(cmdArg) ?? [];
+   }
+
+   private static Option<string> ConfigFileOption(RootCommand root) =>
+      root.Options.OfType<Option<string>>().Single(o =>
+         o.Name is "config-file" or "--config-file" || o.Aliases.Contains("-c") || o.Aliases.Contains("--config-file"));
 }
