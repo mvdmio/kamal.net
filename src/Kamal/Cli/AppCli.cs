@@ -18,6 +18,8 @@ public sealed class AppCli : CliBase
 
       return Modify(async () =>
       {
+         DeployPhase.Emit(DeployPhase.Boot);
+
          if (version is null)
             Say("Get most recent version available as an image...", Magenta);
 

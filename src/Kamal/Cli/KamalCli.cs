@@ -39,19 +39,28 @@ public static class KamalCli
       }
       catch (Exception e) when (e is ExecuteError or MultipleExecuteError)
       {
-         var causeName = (e.InnerException ?? e).GetType().Name;
-         PrintError($"  ERROR ({causeName}): {e.Message}");
-         PrintBacktraceIfVerbose(e);
-
-         return 1;
+         return ReportFailure(e, causeName: (e.InnerException ?? e).GetType().Name);
       }
       catch (Exception e)
       {
-         PrintError($"  ERROR ({e.GetType().Name}): {e.Message}");
-         PrintBacktraceIfVerbose(e);
-
-         return 1;
+         return ReportFailure(e, causeName: e.GetType().Name);
       }
+   }
+
+   /// <summary>
+   /// Classifies <paramref name="exception"/>, prints the error + greppable failure-class marker,
+   /// and returns the public exit code for that class.
+   /// </summary>
+   internal static int ReportFailure(Exception exception, string? causeName = null)
+   {
+      var failureClass = FailureClasses.Classify(exception);
+      var name = causeName ?? (exception.InnerException ?? exception).GetType().Name;
+
+      PrintError($"  ERROR ({name}): {exception.Message}");
+      PrintBacktraceIfVerbose(exception);
+      FailureClasses.Emit(failureClass);
+
+      return FailureClasses.ExitCode(failureClass);
    }
 
    private static void PrintError(string message)

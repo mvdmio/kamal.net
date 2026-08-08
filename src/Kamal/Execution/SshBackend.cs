@@ -1,8 +1,10 @@
+using System.Net.Sockets;
 using System.Text;
 using Kamal.Configuration;
 using Kamal.Secrets;
 using Kamal.Utils;
 using Renci.SshNet;
+using Renci.SshNet.Common;
 
 namespace Kamal.Execution;
 
@@ -128,14 +130,53 @@ public sealed class SshBackend : BackendBase
 
             default:
                var client = NewClient(BuildConnectionInfo(host, TargetPort(ssh), ssh));
-               await client.ConnectAsync(cancellationToken).ConfigureAwait(false);
+               await ConnectClientAsync(client, host, cancellationToken).ConfigureAwait(false);
                return new PooledSshConnection(client);
          }
+      }
+      catch (ExecuteError)
+      {
+         throw;
+      }
+      catch (Exception exception) when (exception is not OperationCanceledException and not NotSupportedException)
+      {
+         throw WrapConnectFailure(host, exception);
       }
       finally
       {
          startSemaphore.Release();
       }
+   }
+
+   /// <summary>
+   /// Connect vs auth seam: preserve SSH.NET exception types as inners so the CLI can map them
+   /// to failure classes (auth=11, connect=10) without grepping free-form messages alone.
+   /// </summary>
+   private static async Task ConnectClientAsync(SshClient client, string host, CancellationToken cancellationToken)
+   {
+      try
+      {
+         await client.ConnectAsync(cancellationToken).ConfigureAwait(false);
+      }
+      catch (Exception exception) when (exception is not OperationCanceledException)
+      {
+         throw WrapConnectFailure(host, exception);
+      }
+   }
+
+   internal static ExecuteError WrapConnectFailure(string host, Exception exception)
+   {
+      if (exception is SshAuthenticationException or SshPassPhraseNullOrEmptyException)
+         return new ExecuteError(host, $"SSH authentication failed for {host}: {exception.Message}", innerException: exception);
+
+      if (exception is SshConnectionException or SshOperationTimeoutException or SocketException or TimeoutException)
+         return new ExecuteError(host, $"SSH connection failed for {host}: {exception.Message}", innerException: exception);
+
+      // Other SSH.NET / transport failures during connect are treated as connect-class.
+      if (exception is SshException or IOException)
+         return new ExecuteError(host, $"SSH connection failed for {host}: {exception.Message}", innerException: exception);
+
+      return new ExecuteError(host, $"SSH error for {host}: {exception.Message}", innerException: exception);
    }
 
    private static async Task<PooledSshConnection> ConnectViaJump(string host, SshJumpProxy jump, Ssh ssh, CancellationToken cancellationToken)
@@ -148,14 +189,14 @@ public sealed class SshBackend : BackendBase
 
       try
       {
-         await jumpClient.ConnectAsync(cancellationToken).ConfigureAwait(false);
+         await ConnectClientAsync(jumpClient, jumpHost, cancellationToken).ConfigureAwait(false);
 
          var forwardedPort = new ForwardedPortLocal("127.0.0.1", 0u, host, (uint)TargetPort(ssh));
          jumpClient.AddForwardedPort(forwardedPort);
          forwardedPort.Start();
 
          var client = NewClient(BuildConnectionInfo("127.0.0.1", (int)forwardedPort.BoundPort, ssh));
-         await client.ConnectAsync(cancellationToken).ConfigureAwait(false);
+         await ConnectClientAsync(client, host, cancellationToken).ConfigureAwait(false);
 
          return new PooledSshConnection(client, jumpClient, forwardedPort);
       }

@@ -1,3 +1,5 @@
+using Kamal.Cli;
+
 namespace Kamal.Tests.Cli;
 
 /// <summary>Port of the high-value parts of <c>test/cli/lock_test.rb</c>.</summary>
@@ -29,9 +31,10 @@ public sealed class LockCliTests
 
       var exitCode = await harness.Run("lock", "acquire", "-m", "Maintenance");
 
-      Assert.Equal(1, exitCode);
+      Assert.Equal(FailureClasses.ExitLock, exitCode);
       Assert.Contains("Deploy lock already in place!", harness.Output);
       Assert.Contains("Deploy lock found. Run 'kamal lock help' for more information", harness.Output);
+      Assert.Contains(FailureClasses.Marker(FailureClass.Lock), harness.Output);
    }
 
    [Fact]

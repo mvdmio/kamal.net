@@ -159,9 +159,10 @@ public sealed class MainCliTests
 
       var exitCode = await harness.Run("deploy", "--skip-push");
 
-      Assert.Equal(1, exitCode);
+      Assert.Equal(FailureClasses.ExitLock, exitCode);
       Assert.Contains("Deploy lock already in place!", harness.Output);
       Assert.Contains("Deploy lock found. Run 'kamal lock help' for more information", harness.Output);
+      Assert.Contains(FailureClasses.Marker(FailureClass.Lock), harness.Output);
    }
 
    [Fact]

@@ -315,6 +315,8 @@ public abstract class CliBase
    {
       if (!KAMAL.Connected)
       {
+         DeployPhase.Emit(DeployPhase.Connect);
+
          if (!Options.SkipHooks)
             await RunHook("pre-connect", secrets: true).ConfigureAwait(false);
 

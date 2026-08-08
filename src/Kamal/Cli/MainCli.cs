@@ -35,6 +35,8 @@ public sealed class MainCli : CliBase
          {
             var version = KAMAL.Config.Version;
 
+            DeployPhase.Emit(DeployPhase.Build);
+
             if (skipPush)
             {
                Say("Pull app image...", Magenta);
@@ -78,6 +80,8 @@ public sealed class MainCli : CliBase
          var runtime = await PrintRuntime(async () =>
          {
             var version = KAMAL.Config.Version;
+
+            DeployPhase.Emit(DeployPhase.Build);
 
             if (skipPush)
             {

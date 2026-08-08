@@ -1,3 +1,4 @@
+using Kamal.Cli;
 using Kamal.Execution;
 
 namespace Kamal.Tests.Cli;
@@ -69,8 +70,10 @@ public sealed class AppCliTests
 
       var exitCode = await harness.Run("app", "boot", "--version", "999");
 
-      Assert.Equal(1, exitCode);
+      Assert.Equal(FailureClasses.ExitHealthcheck, exitCode);
       Assert.Contains("Failed to get endpoint for web on 1.1.1.1, did the container boot?", harness.Output);
+      Assert.Contains(FailureClasses.Marker(FailureClass.Healthcheck), harness.Output);
+      Assert.Contains(DeployPhase.Marker(DeployPhase.Boot), harness.Output);
 
       // The failed container is stopped and the lock released.
       Assert.Contains(harness.CommandsOn("1.1.1.1"), command => command.Contains("docker stop"));
