@@ -48,6 +48,8 @@ ssh:
   # even if ssh-agent offers more identities. This option is intended for
   # situations where ssh-agent offers many different identities or you
   # need to overwrite all identities and force a single one.
+  # When `keys` / `key_data` yield keys, Kamal.NET already does not mix in agent
+  # or default identity files (see credential priority below).
   keys_only: false
 
   # Keys
@@ -59,11 +61,32 @@ ssh:
   # Key data
   #
   # An array of strings, with each element of the array being a secret name.
+  # First-class for secret-manager and CI setups that inject key material into
+  # Kamal secrets rather than the process environment or ssh-agent.
   key_data:
     - SSH_PRIVATE_KEY
   # You can also provide raw private key in PEM format, but this is deprecated.
   key_data:
     - "-----BEGIN OPENSSH PRIVATE KEY----- ..."
+
+  # Credential sources and priority
+  #
+  # Kamal.NET authenticates with private keys only (no password auth). Sources,
+  # highest priority first — the first source that yields keys is used alone
+  # (lower sources are not mixed in):
+  #
+  # 1. Explicit `keys` paths and `key_data` (secret names or deprecated inline PEM)
+  # 2. `KAMAL_SSH_PRIVATE_KEY` environment variable (full PEM private key text)
+  # 3. ssh-agent identities (`SSH_AUTH_SOCK` on Unix; OpenSSH agent pipe on Windows)
+  # 4. Default `~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, `id_dsa` when nothing
+  #    above yields keys
+  #
+  # CI examples:
+  # - Load a key into ssh-agent (e.g. webfactory/ssh-agent) and omit `keys`/`key_data`
+  # - Or set `KAMAL_SSH_PRIVATE_KEY` to the PEM without writing a key file
+  # - Or put the PEM in secrets and reference it from `key_data`
+  #
+  # Wrong or missing usable credentials fail at connect time.
 
   # Config
   #

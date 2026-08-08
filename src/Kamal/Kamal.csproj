@@ -45,8 +45,13 @@
 
   <ItemGroup>
     <PackageReference Include="SSH.NET" Version="2025.1.0" />
+    <PackageReference Include="SshNet.Agent" Version="2024.2.0.5" />
     <PackageReference Include="System.CommandLine" Version="2.0.9" />
     <PackageReference Include="YamlDotNet" Version="18.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Kamal.Tests" />
   </ItemGroup>
 
 </Project>
