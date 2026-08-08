@@ -36,6 +36,17 @@ public sealed class MainCliTests
    }
 
    [Fact]
+   public async Task DocsCiPrintsCiSection()
+   {
+      using var harness = new CliTestHarness();
+
+      Assert.Equal(0, await harness.Run("docs", "ci"));
+      Assert.Contains("Continuous Integration (CI)", harness.Output);
+      Assert.Contains("kamal.failure_class=", harness.Output);
+      Assert.Contains("mvdmio/kamal.net/actions/deploy", harness.Output);
+   }
+
+   [Fact]
    public async Task DocsUnknownSectionPrintsNotFound()
    {
       using var harness = new CliTestHarness();

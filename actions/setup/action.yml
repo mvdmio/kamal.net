@@ -1,0 +1,56 @@
+name: Setup Kamal.NET
+description: >
+  Install a pin-able mvdmio.Kamal (kamal) version, put it on PATH, and optionally
+  configure SSH from a private-key input. Usable alone for non-deploy kamal commands.
+author: mvdmio
+
+branding:
+  icon: terminal
+  color: blue
+
+inputs:
+  version:
+    description: >
+      mvdmio.Kamal tool version to install (e.g. 2.11.1). Omit to install the latest
+      stable version from NuGet. Pin this to match a release tag of this repository.
+    required: false
+    default: ""
+  dotnet-version:
+    description: .NET SDK channel or version passed to actions/setup-dotnet.
+    required: false
+    default: "10.0.x"
+  skip-dotnet-setup:
+    description: >
+      If "true", skip actions/setup-dotnet (use when the job already installed a
+      compatible SDK).
+    required: false
+    default: "false"
+  ssh-private-key:
+    description: >
+      PEM private key material. Exported as KAMAL_SSH_PRIVATE_KEY for Kamal SSH auth
+      (no key file write). Leave empty when using ssh-agent (e.g. webfactory/ssh-agent)
+      or ssh.key_data + secrets instead.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Setup .NET SDK
+      if: inputs.skip-dotnet-setup != 'true'
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Install mvdmio.Kamal
+      shell: bash
+      env:
+        KAMAL_VERSION: ${{ inputs.version }}
+      run: bash "${{ github.action_path }}/install.sh"
+
+    - name: Configure SSH private key
+      if: inputs.ssh-private-key != ''
+      shell: bash
+      env:
+        SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
+      run: bash "${{ github.action_path }}/configure-ssh.sh"

@@ -1,6 +1,6 @@
 # 06 — GitHub Actions and CI documentation
 
-Status: pending
+Status: done
 
 ## What to build
 
@@ -46,3 +46,7 @@ Projects: `src/Kamal`, `tests/Kamal.Tests` (docs smoke), repo root (Actions)
 - [ ] Exit-code table in docs matches the codes shipped in step 04
 - [ ] `key_data` remains documented as a first-class path
 - [ ] Action metadata validates at a lightweight level; docs smoke tests pass; `dotnet test` green
+
+## Outcome
+
+Published composite Actions `actions/setup` and `actions/deploy` (action.yml + bash scripts). Setup: pin-able `mvdmio.Kamal` via `dotnet tool install/update -g`, `~/.dotnet/tools` on `GITHUB_PATH`, optional `ssh-private-key` → `KAMAL_SSH_PRIVATE_KEY` multiline env (no key file). Inputs also `dotnet-version` (default `10.0.x`), `skip-dotnet-setup`. Deploy reuses sibling setup scripts via `github.action_path`, then `kamal deploy` with `destination`, `retry` (`--retry N`), `args`, `working-directory`. Consumers pin `mvdmio/kamal.net/actions/{setup,deploy}@vX.Y.Z` matching the tool version. Added embedded `Configuration/Docs/ci.yml` for `kamal docs ci` covering install, SSH (agent / env / key_data), expansion + ERB migration, destinations, failure exit codes (1/10/11/20/30/40 matching step 04), `--retry`, GHA examples. README: CI section + corrected SSH/ERB deviations. Tests: ValidationDocs/MainCli ci smoke, exit-code table vs `FailureClasses`, `GitHubActionsMetadataTests`. `dotnet test`: 835 passed. Footprint matched.

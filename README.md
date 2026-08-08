@@ -50,10 +50,23 @@ Architecture maps 1:1 to upstream:
 | `Kamal::Commander` | `Kamal.Commander` |
 | Thor CLI | `Kamal.Cli` (System.CommandLine) |
 
+## CI
+
+For install pins, SSH (agent / `KAMAL_SSH_PRIVATE_KEY` / `key_data`), config expansion, destinations, failure exit codes, connect-only `--retry`, and GitHub Actions examples, run:
+
+```bash
+kamal docs ci
+```
+
+Composite Actions in this repo (pin at a release tag matching the tool version):
+
+- [`actions/setup`](actions/setup) — install `mvdmio.Kamal`, PATH, optional SSH key
+- [`actions/deploy`](actions/deploy) — setup then `kamal deploy` (destination + args)
+
 ## Known deviations from Ruby Kamal
 
-- **No ERB in `deploy.yml`** — config files are parsed as plain YAML. ERB templating is Ruby-specific; if you relied on it, move dynamic values to env/secrets.
-- **SSH auth** uses key files (`ssh.keys`, `key_data`, or default `~/.ssh/id_*`); ssh-agent and password auth are not supported yet.
+- **No full ERB in `deploy.yml`** — config is plain YAML. Use **config expansion** (`${ENV_VAR}` / `${ENV_VAR:-default}` in string values after load) for env-driven values; see `kamal docs ci` and ADR 0002. Secrets stay as secret name-references.
+- **SSH auth** — private keys only (no password). Sources in priority order: `ssh.keys` / `ssh.key_data`, then `KAMAL_SSH_PRIVATE_KEY`, then ssh-agent, then default `~/.ssh/id_*`. See `kamal docs ssh` and `kamal docs ci`.
 - **`ssh.proxy`** supports a single jump host (`user@bastion`); `proxy_command` and chained jump hosts are not supported.
 - **OpenTelemetry audit log shipping** is not ported (file-based audit logging works).
 - `kamal init --bundle` (Gemfile binstubs) is not applicable to .NET and prints a note.

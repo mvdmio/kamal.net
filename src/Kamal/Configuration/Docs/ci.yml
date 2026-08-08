@@ -1,0 +1,208 @@
+# Continuous Integration (CI)
+#
+# Install Kamal.NET, authenticate over SSH, expand env-driven config, pin destinations,
+# classify failures, and use the official GitHub Actions. Run this section offline with:
+#
+# ```shell
+# kamal docs ci
+# ```
+#
+# This is a documentation-only section (not a deploy.yml key).
+
+# Tool install and version pin
+#
+# Install the global tool from NuGet:
+#
+# ```shell
+# dotnet tool install -g mvdmio.Kamal
+# # or pin a release:
+# dotnet tool install -g mvdmio.Kamal --version 2.11.1
+# ```
+#
+# The `kamal` command is on PATH when `~/.dotnet/tools` is (dotnet tools default).
+# Prefer pinning the same version in CI and locally. Release tags of this repository
+# (`v2.11.1`, …) match the package version; use that tag when referencing the Actions.
+
+# SSH authentication
+#
+# Kamal.NET uses private keys only (password auth is out of scope). Sources, highest
+# priority first — the first source that yields keys is used alone:
+#
+# 1. Explicit `ssh.keys` paths and `ssh.key_data` (secret names or deprecated inline PEM)
+# 2. `KAMAL_SSH_PRIVATE_KEY` environment variable (full PEM private key text)
+# 3. ssh-agent identities (`SSH_AUTH_SOCK` on Unix)
+# 4. Default `~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, `id_dsa` when nothing above yields keys
+#
+# CI patterns (all first-class):
+#
+# **ssh-agent** — load a key into the agent (e.g. `webfactory/ssh-agent`) and omit
+# `ssh.keys` / `ssh.key_data` / `KAMAL_SSH_PRIVATE_KEY` so agent identities are used.
+#
+# **Environment variable** — set `KAMAL_SSH_PRIVATE_KEY` to the PEM without writing a key
+# file or changing `deploy.yml`. The setup Action does this from its `ssh-private-key` input.
+#
+# **key_data secrets** — put the PEM in Kamal secrets and reference the secret name from
+# config (secret-manager-centric setups stay valid):
+#
+# ```yaml
+# # config/deploy.yml
+# ssh:
+#   key_data:
+#     - SSH_PRIVATE_KEY
+# ```
+#
+# ```shell
+# # .kamal/secrets (or secrets.<destination>)
+# SSH_PRIVATE_KEY=$(printenv SSH_PRIVATE_KEY)
+# ```
+#
+# See also: `kamal docs ssh`.
+
+# Config expansion (and migrating from ERB)
+#
+# Full ERB in `deploy.yml` is not supported. After base + destination YAML merge, every
+# string scalar may use process-environment placeholders:
+#
+# - `${ENV_VAR}` — required; config load fails if `ENV_VAR` is unset
+# - `${ENV_VAR:-default}` — optional; uses default (may be empty: `${ENV_VAR:-}`) when unset
+#
+# Expansion uses the process environment only — not the secrets map. Keep secret material
+# as secret name-references (`env.secret`, `builder.secrets`, `ssh.key_data`, …).
+#
+# Ruby ERB migration examples:
+#
+# ```erb
+# # before (Ruby Kamal)
+# args:
+#   COMMIT_SHA: <%= ENV.fetch("GITHUB_SHA", "") %>
+# ```
+#
+# ```yaml
+# # after (Kamal.NET)
+# args:
+#   COMMIT_SHA: ${GITHUB_SHA:-}
+# ```
+#
+# ```erb
+# image: myapp:<%= ENV.fetch("IMAGE_TAG") %>
+# ```
+#
+# ```yaml
+# image: myapp:${IMAGE_TAG}
+# ```
+#
+# Set the variables in the CI job env (or the shell) before `kamal deploy`. See ADR 0002.
+
+# Destinations
+#
+# A destination selects an overlay config and secrets file:
+#
+# - `config/deploy.<destination>.yml` deep-merged over `config/deploy.yml`
+# - `.kamal/secrets.<destination>` (plus `.kamal/secrets-common` when present)
+#
+# ```shell
+# kamal deploy -d auth
+# kamal deploy -d staging
+# ```
+#
+# The deploy Action accepts a `destination` input for the same multi-destination pattern.
+# See also: `kamal docs configuration` and env secrets notes in `kamal docs env`.
+
+# Failure classes and exit codes
+#
+# When a run stops, Kamal prints a greppable failure-class marker and exits with a stable
+# code. Phase markers (`kamal.phase=…`) are separate and mean “where the run was”, not why
+# it stopped.
+#
+# | Failure class | Exit code | Marker                         | Typical cause                          |
+# |---------------|-----------|--------------------------------|----------------------------------------|
+# | generic       | 1         | kamal.failure_class=generic    | Unclassified error                     |
+# | connect       | 10        | kamal.failure_class=connect    | SSH timeout, refused, dropped socket   |
+# | auth          | 11        | kamal.failure_class=auth       | Bad or missing SSH credentials         |
+# | build         | 20        | kamal.failure_class=build      | Image build / push failure             |
+# | healthcheck   | 30        | kamal.failure_class=healthcheck| App failed healthcheck / boot barrier  |
+# | lock          | 40        | kamal.failure_class=lock       | Deploy lock held or lock errors        |
+#
+# Example phase markers: `kamal.phase=connect`, `kamal.phase=build`, `kamal.phase=boot`.
+# Scripts can branch on the exit code without grepping logs; annotations can grep markers.
+
+# Connect-only deploy retry
+#
+# Opt-in. Off by default (one attempt). Retries only **connect** failures with exponential
+# backoff; never retries auth, build, healthcheck, lock, or generic failures.
+#
+# ```shell
+# kamal deploy --retry        # up to 3 attempts (default N when flag is present)
+# kamal deploy --retry 5      # up to 5 attempts
+# kamal setup -d auth --retry # same flag on setup
+# ```
+#
+# Exhausted connect failures still exit 10 with `kamal.failure_class=connect`.
+
+# GitHub Actions
+#
+# This repository publishes composite Actions that track tool releases by tag:
+#
+# - `mvdmio/kamal.net/actions/setup@vX.Y.Z` — install tool, PATH, optional SSH key
+# - `mvdmio/kamal.net/actions/deploy@vX.Y.Z` — setup, then `kamal deploy`
+#
+# Reference them at a version tag that matches the tool version you pin (e.g. `@v2.11.1`).
+#
+# ## Setup only (non-deploy commands)
+#
+# ```yaml
+# jobs:
+#   audit:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: mvdmio/kamal.net/actions/setup@v2.11.1
+#         with:
+#           version: 2.11.1
+#           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+#       - run: kamal app details -d auth
+# ```
+#
+# ## Deploy (happy path)
+#
+# ```yaml
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: mvdmio/kamal.net/actions/deploy@v2.11.1
+#         with:
+#           version: 2.11.1
+#           destination: auth
+#           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+#           retry: "3"
+#           # Optional build metadata via config expansion:
+#           # set env so ${GITHUB_SHA:-} etc. expand in deploy.yml
+#         env:
+#           GITHUB_SHA: ${{ github.sha }}
+# ```
+#
+# ## ssh-agent instead of ssh-private-key
+#
+# ```yaml
+# steps:
+#   - uses: webfactory/ssh-agent@v0.9.0
+#     with:
+#       ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+#   - uses: mvdmio/kamal.net/actions/deploy@v2.11.1
+#     with:
+#       version: 2.11.1
+#       destination: web
+#       # omit ssh-private-key — agent identities are used when no higher source is set
+# ```
+#
+# ## key_data path (no agent, no KAMAL_SSH_PRIVATE_KEY)
+#
+# Keep `ssh.key_data: [SSH_PRIVATE_KEY]` in config and inject the PEM into Kamal secrets
+# (for example from the job environment into `.kamal/secrets` / secrets adapter). Do not
+# pass `ssh-private-key` to the Action if you want key_data to win only after explicit
+# keys — remember credential priority: keys/key_data beat the env var and the agent.
+#
+# After adopting setup/deploy Actions, suite-style consumers can drop custom key-write
+# steps, install/PATH glue, commit-SHA ERB workarounds, and log-scraping retry loops.

@@ -1,0 +1,86 @@
+name: Deploy with Kamal.NET
+description: >
+  Install Kamal.NET (setup), configure optional SSH credentials, then run
+  `kamal deploy` with destination and passthrough arguments.
+author: mvdmio
+
+branding:
+  icon: upload-cloud
+  color: blue
+
+inputs:
+  version:
+    description: >
+      mvdmio.Kamal tool version to install (e.g. 2.11.1). Omit for latest stable.
+      Pin this to match a release tag of this repository.
+    required: false
+    default: ""
+  dotnet-version:
+    description: .NET SDK channel or version passed to actions/setup-dotnet.
+    required: false
+    default: "10.0.x"
+  skip-dotnet-setup:
+    description: >
+      If "true", skip actions/setup-dotnet (use when the job already installed a
+      compatible SDK).
+    required: false
+    default: "false"
+  ssh-private-key:
+    description: >
+      PEM private key material. Exported as KAMAL_SSH_PRIVATE_KEY for Kamal SSH auth.
+      Leave empty when using ssh-agent or ssh.key_data + secrets.
+    required: false
+    default: ""
+  destination:
+    description: >
+      Destination name passed as `kamal deploy -d <destination>` (selects
+      config/deploy.<destination>.yml and .kamal/secrets.<destination>).
+    required: false
+    default: ""
+  args:
+    description: >
+      Extra arguments appended to `kamal deploy` (shell-quoted string, e.g.
+      "--skip-push --verbose").
+    required: false
+    default: ""
+  retry:
+    description: >
+      Opt-in connect-only retry attempts for this deploy (maps to `kamal deploy --retry N`).
+      Leave empty to disable retry (default). Set e.g. "3" for three attempts on connect failures.
+    required: false
+    default: ""
+  working-directory:
+    description: Directory containing config/deploy.yml (defaults to the job workspace root).
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Setup .NET SDK
+      if: inputs.skip-dotnet-setup != 'true'
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Install mvdmio.Kamal
+      shell: bash
+      env:
+        KAMAL_VERSION: ${{ inputs.version }}
+      run: bash "${{ github.action_path }}/../setup/install.sh"
+
+    - name: Configure SSH private key
+      if: inputs.ssh-private-key != ''
+      shell: bash
+      env:
+        SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
+      run: bash "${{ github.action_path }}/../setup/configure-ssh.sh"
+
+    - name: kamal deploy
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DESTINATION: ${{ inputs.destination }}
+        EXTRA_ARGS: ${{ inputs.args }}
+        RETRY: ${{ inputs.retry }}
+      run: bash "${{ github.action_path }}/deploy.sh"
