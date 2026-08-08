@@ -111,19 +111,7 @@ public static class FailureClasses
                return FailureClass.Connect;
             case MultipleExecuteError multiple:
             {
-               FailureClass? best = null;
-
-               foreach (var error in multiple.Errors)
-               {
-                  var classified = ClassifyCore(error, seen);
-
-                  if (classified is { } candidate && candidate != FailureClass.Generic)
-                  {
-                     if (best is null || Specificity(candidate) > Specificity(best.Value))
-                        best = candidate;
-                  }
-               }
-
+               var best = MostSpecific(multiple.Errors, seen);
                if (best is not null)
                   return best;
 
@@ -131,19 +119,7 @@ public static class FailureClasses
             }
             case AggregateException aggregate:
             {
-               FailureClass? best = null;
-
-               foreach (var inner in aggregate.InnerExceptions)
-               {
-                  var classified = ClassifyCore(inner, seen);
-
-                  if (classified is { } candidate && candidate != FailureClass.Generic)
-                  {
-                     if (best is null || Specificity(candidate) > Specificity(best.Value))
-                        best = candidate;
-                  }
-               }
-
+               var best = MostSpecific(aggregate.InnerExceptions, seen);
                if (best is not null)
                   return best;
 
@@ -180,39 +156,72 @@ public static class FailureClasses
    /// <summary>Higher wins when aggregating multi-host failures (auth over connect, etc.).</summary>
    private static int Specificity(FailureClass failureClass) => Meta(failureClass).Specificity;
 
-   private static bool LooksLikeAuth(ExecuteError error)
+   /// <summary>
+   /// Picks the most specific non-generic class among a multi-exception fan-out
+   /// (<see cref="MultipleExecuteError"/> / <see cref="AggregateException"/>).
+   /// </summary>
+   private static FailureClass? MostSpecific(IEnumerable<Exception> exceptions, HashSet<Exception> seen)
    {
-      var text = Combined(error);
+      FailureClass? best = null;
 
-      return Contains(text, "Permission denied (publickey")
-         || Contains(text, "Authentication failed")
-         || Contains(text, "SSH authentication failed")
-         || Contains(text, "No supported authentication methods")
-         || Contains(text, "Too many authentication failures")
-         || Contains(text, "Permission denied (keyboard-interactive")
-         || Contains(text, "Permission denied (password");
+      foreach (var exception in exceptions)
+      {
+         var classified = ClassifyCore(exception, seen);
+
+         if (classified is { } candidate && candidate != FailureClass.Generic)
+         {
+            if (best is null || Specificity(candidate) > Specificity(best.Value))
+               best = candidate;
+         }
+      }
+
+      return best;
    }
 
-   private static bool LooksLikeConnect(ExecuteError error)
-   {
-      var text = Combined(error);
+   // Message heuristics when typed SSH.NET inners are missing (legacy / wrapped ExecuteError).
+   private static readonly string[] AuthMessageFragments =
+   [
+      "Permission denied (publickey",
+      "Authentication failed",
+      "SSH authentication failed",
+      "No supported authentication methods",
+      "Too many authentication failures",
+      "Permission denied (keyboard-interactive",
+      "Permission denied (password"
+   ];
 
-      return Contains(text, "Could not establish a connected SSH session")
-         || Contains(text, "SSH connection failed")
-         || Contains(text, "Connection refused")
-         || Contains(text, "Connection timed out")
-         || Contains(text, "Connection reset")
-         || Contains(text, "No route to host")
-         || Contains(text, "Network is unreachable")
-         || Contains(text, "Name or service not known")
-         || Contains(text, "Temporary failure in name resolution")
-         || Contains(text, "No such host is known")
-         || Contains(text, "actively refused")
-         || Contains(text, "timed out");
-   }
+   private static readonly string[] ConnectMessageFragments =
+   [
+      "Could not establish a connected SSH session",
+      "SSH connection failed",
+      "Connection refused",
+      "Connection timed out",
+      "Connection reset",
+      "No route to host",
+      "Network is unreachable",
+      "Name or service not known",
+      "Temporary failure in name resolution",
+      "No such host is known",
+      "actively refused",
+      "timed out"
+   ];
+
+   private static bool LooksLikeAuth(ExecuteError error) =>
+      MatchesAny(Combined(error), AuthMessageFragments);
+
+   private static bool LooksLikeConnect(ExecuteError error) =>
+      MatchesAny(Combined(error), ConnectMessageFragments);
 
    private static string Combined(ExecuteError error) => $"{error.Message}\n{error.Stderr}";
 
-   private static bool Contains(string text, string fragment) =>
-      text.Contains(fragment, StringComparison.OrdinalIgnoreCase);
+   private static bool MatchesAny(string text, string[] fragments)
+   {
+      foreach (var fragment in fragments)
+      {
+         if (text.Contains(fragment, StringComparison.OrdinalIgnoreCase))
+            return true;
+      }
+
+      return false;
+   }
 }

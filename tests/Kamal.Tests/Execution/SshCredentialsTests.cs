@@ -241,11 +241,12 @@ public class SshCredentialsTests
       var ssh = NewSsh(new Cfg { ["key_data"] = L(EncryptedPrivateKeyPem) });
       var options = IsolatedOptions(passphrase: null, interactive: false);
 
-      var ex = Assert.Throws<AuthError>(() => SshCredentials.Resolve(ssh, options));
+      var ex = Assert.Throws<MissingPassphraseError>(() => SshCredentials.Resolve(ssh, options));
 
       Assert.Contains("encrypted", ex.Message, StringComparison.OrdinalIgnoreCase);
       Assert.Contains(SshCredentials.PassphraseEnvironmentVariable, ex.Message);
       Assert.DoesNotContain("silently", ex.Message, StringComparison.OrdinalIgnoreCase);
+      Assert.IsAssignableFrom<AuthError>(ex);
       Assert.Equal(FailureClass.Auth, FailureClasses.Classify(ex));
       Assert.Equal(FailureClasses.ExitAuth, FailureClasses.ExitCode(FailureClasses.Classify(ex)));
    }
@@ -260,7 +261,7 @@ public class SshCredentialsTests
          passphrase: null,
          interactive: false);
 
-      var ex = Assert.Throws<AuthError>(() => SshCredentials.Resolve(ssh, options));
+      var ex = Assert.Throws<MissingPassphraseError>(() => SshCredentials.Resolve(ssh, options));
       Assert.Contains(SshCredentials.PassphraseEnvironmentVariable, ex.Message);
       Assert.Equal(FailureClass.Auth, FailureClasses.Classify(ex));
    }

@@ -305,19 +305,20 @@ internal static class SshCredentials
          {
             keyFiles.Add(LoadKeyFile(path, path, passphraseState, required: false));
          }
-         catch (AuthError) when (passphraseState.LastFailureWasMissingPassphrase)
+         catch (MissingPassphraseError)
          {
+            // Typed missing-passphrase: collect paths; fail closed only if nothing else loads.
             encryptedWithoutPassphrase.Add(path);
          }
          catch (Exception)
          {
-            // Skip other unreadable default keys (permissions, corrupt, etc.).
+            // Skip other unreadable default keys (permissions, corrupt, wrong passphrase, etc.).
          }
       }
 
       if (keyFiles.Count == 0 && encryptedWithoutPassphrase.Count > 0)
       {
-         throw new AuthError(
+         throw new MissingPassphraseError(
             MissingPassphraseMessage(string.Join(", ", encryptedWithoutPassphrase)));
       }
 
@@ -343,8 +344,6 @@ internal static class SshCredentials
          _ssh = ssh;
          _loadOptions = loadOptions;
       }
-
-      public bool LastFailureWasMissingPassphrase { get; private set; }
 
       public string? TryGetKnownPassphrase()
       {
@@ -384,8 +383,6 @@ internal static class SshCredentials
 
       public string RequirePassphrase(string keyDescription)
       {
-         LastFailureWasMissingPassphrase = false;
-
          var known = TryGetKnownPassphrase();
          if (!string.IsNullOrEmpty(known))
             return known!;
@@ -402,8 +399,7 @@ internal static class SshCredentials
             }
          }
 
-         LastFailureWasMissingPassphrase = true;
-         throw new AuthError(MissingPassphraseMessage(keyDescription));
+         throw new MissingPassphraseError(MissingPassphraseMessage(keyDescription));
       }
 
       private static bool IsInteractiveConsole() =>

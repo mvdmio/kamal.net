@@ -44,13 +44,25 @@ public sealed class BuildError : Exception
 /// SSH credential / authentication failure (missing passphrase, unreadable configured keys,
 /// explicit keys that do not load). Maps to <see cref="FailureClass.Auth"/> (exit 11).
 /// </summary>
-public sealed class AuthError : Exception
+public class AuthError : Exception
 {
    public AuthError(string message) : base(message)
    {
    }
 
    public AuthError(string message, Exception innerException) : base(message, innerException)
+   {
+   }
+}
+
+/// <summary>
+/// Private key is encrypted and no passphrase is available (env, config, or interactive prompt).
+/// Subtype of <see cref="AuthError"/> so default-identity loading can skip individual keys and
+/// only fail closed when every candidate is encrypted-without-passphrase.
+/// </summary>
+public sealed class MissingPassphraseError : AuthError
+{
+   public MissingPassphraseError(string message) : base(message)
    {
    }
 }
