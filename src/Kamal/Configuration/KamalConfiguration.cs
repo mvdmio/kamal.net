@@ -47,6 +47,10 @@ public sealed partial class KamalConfiguration
          config = RubyHelpers.DeepMerge(config, LoadConfigFile(destinationFile));
       }
 
+      // After base + destination merge: expand ${ENV_VAR} / ${ENV_VAR:-default} from the process
+      // environment in every string scalar (ADR 0002). Secrets are not an expansion source.
+      ConfigExpansion.Expand(config);
+
       return config;
    }
 
@@ -55,8 +59,9 @@ public sealed partial class KamalConfiguration
       if (!File.Exists(file))
          throw new InvalidOperationException($"Configuration file not found in {file}");
 
-      // DEVIATION: Ruby renders the file through ERB before YAML parsing; the C# port loads
-      // the YAML directly, so `<%= ... %>` templating is not supported.
+      // DEVIATION: Ruby renders the file through ERB before YAML parsing. The C# port loads YAML
+      // directly (no full ERB). Limited ${ENV_VAR} / ${ENV_VAR:-default} expansion runs after
+      // load and destination merge — see ConfigExpansion / ADR 0002.
       var loaded = YamlLoader.LoadFile(file);
 
       return RubyHelpers.AsDict(loaded) ?? new OrderedDictionary<string, object?>();
