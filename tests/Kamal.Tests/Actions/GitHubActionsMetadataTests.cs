@@ -19,7 +19,7 @@ public class GitHubActionsMetadataTests
       Assert.Contains("skip-dotnet-setup:", yaml);
       Assert.Contains("install.sh", yaml);
       Assert.Contains("configure-ssh.sh", yaml);
-      Assert.Contains("actions/setup-dotnet@v4", yaml);
+      Assert.Contains("actions/setup-dotnet@v6", yaml);
    }
 
    [Fact]
