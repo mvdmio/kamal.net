@@ -7,8 +7,8 @@ namespace Kamal.Tests.Cli;
 public sealed class ParseTreeTests
 {
    public static TheoryData<string> CommandLines() => new(
-      "setup --skip-push --no-cache",
-      "deploy -P --no-cache",
+      "setup --skip-push --no-cache --retry",
+      "deploy -P --no-cache --retry 3",
       "redeploy --skip-push",
       "rollback 123",
       "details",

@@ -14,62 +14,74 @@ public sealed class MainCli : CliBase
    }
 
    /// <summary>Port of <c>setup</c>.</summary>
-   public async Task Setup(bool skipPush = false, bool noCache = false)
+   /// <param name="connectRetryAttempts">
+   /// Max attempts for connect-class failures only (1 = no retry). Opt-in via <c>--retry</c>.
+   /// Nested <see cref="Deploy"/> is not re-wrapped; the outer loop covers bootstrap + deploy.
+   /// </param>
+   public Task Setup(bool skipPush = false, bool noCache = false, int connectRetryAttempts = 1)
    {
-      await PrintRuntime(() =>
-         Modify(async () =>
-         {
-            Say("Ensure Docker is installed...", Magenta);
-            await new ServerCli(Context).Bootstrap().ConfigureAwait(false);
+      return ConnectRetry.RunAsync(connectRetryAttempts, async () =>
+      {
+         await PrintRuntime(() =>
+            Modify(async () =>
+            {
+               Say("Ensure Docker is installed...", Magenta);
+               await new ServerCli(Context).Bootstrap().ConfigureAwait(false);
 
-            await Deploy(skipPush, noCache, bootAccessories: true).ConfigureAwait(false);
-         }, requireLock: true)).ConfigureAwait(false);
+               // Nested deploy must not double-retry; outer setup loop owns connect retries.
+               await Deploy(skipPush, noCache, bootAccessories: true, connectRetryAttempts: 1).ConfigureAwait(false);
+            }, requireLock: true)).ConfigureAwait(false);
+      });
    }
 
    /// <summary>Port of <c>deploy</c>.</summary>
-   public Task Deploy(bool skipPush = false, bool noCache = false, bool bootAccessories = false)
+   /// <param name="connectRetryAttempts">
+   /// Max attempts for connect-class failures only (1 = no retry). Opt-in via <c>--retry</c>.
+   /// </param>
+   public Task Deploy(bool skipPush = false, bool noCache = false, bool bootAccessories = false, int connectRetryAttempts = 1)
    {
-      return Modify(async () =>
-      {
-         var runtime = await PrintRuntime(async () =>
+      return ConnectRetry.RunAsync(connectRetryAttempts, () =>
+         Modify(async () =>
          {
-            var version = KAMAL.Config.Version;
-
-            DeployPhase.Emit(DeployPhase.Build);
-
-            if (skipPush)
+            var runtime = await PrintRuntime(async () =>
             {
-               Say("Pull app image...", Magenta);
-               await new BuildCli(Context).Pull().ConfigureAwait(false);
-            }
-            else
-            {
-               Say("Build and push app image...", Magenta);
-               await new BuildCli(Context).Deliver(noCache: noCache).ConfigureAwait(false);
-            }
+               var version = KAMAL.Config.Version;
 
-            await Modify(async () =>
-            {
-               await RunHook("pre-deploy", secrets: true).ConfigureAwait(false);
+               DeployPhase.Emit(DeployPhase.Build);
 
-               Say("Ensure kamal-proxy is running...", Magenta);
-               await new ProxyCli(Context).Boot().ConfigureAwait(false);
+               if (skipPush)
+               {
+                  Say("Pull app image...", Magenta);
+                  await new BuildCli(Context).Pull().ConfigureAwait(false);
+               }
+               else
+               {
+                  Say("Build and push app image...", Magenta);
+                  await new BuildCli(Context).Deliver(noCache: noCache).ConfigureAwait(false);
+               }
 
-               if (bootAccessories)
-                  await new AccessoryCli(Context).Boot("all").ConfigureAwait(false);
+               await Modify(async () =>
+               {
+                  await RunHook("pre-deploy", secrets: true).ConfigureAwait(false);
 
-               Say("Detect stale containers...", Magenta);
-               await new AppCli(Context).StaleContainers(stop: true).ConfigureAwait(false);
+                  Say("Ensure kamal-proxy is running...", Magenta);
+                  await new ProxyCli(Context).Boot().ConfigureAwait(false);
 
-               await new AppCli(Context).Boot(version).ConfigureAwait(false);
+                  if (bootAccessories)
+                     await new AccessoryCli(Context).Boot("all").ConfigureAwait(false);
 
-               Say("Prune old containers and images...", Magenta);
-               await new PruneCli(Context).All().ConfigureAwait(false);
-            }, requireLock: true).ConfigureAwait(false);
-         }).ConfigureAwait(false);
+                  Say("Detect stale containers...", Magenta);
+                  await new AppCli(Context).StaleContainers(stop: true).ConfigureAwait(false);
 
-         await RunHook("post-deploy", secrets: true, ("runtime", Math.Round(runtime).ToString("0"))).ConfigureAwait(false);
-      });
+                  await new AppCli(Context).Boot(version).ConfigureAwait(false);
+
+                  Say("Prune old containers and images...", Magenta);
+                  await new PruneCli(Context).All().ConfigureAwait(false);
+               }, requireLock: true).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+
+            await RunHook("post-deploy", secrets: true, ("runtime", Math.Round(runtime).ToString("0"))).ConfigureAwait(false);
+         }));
    }
 
    /// <summary>Port of <c>redeploy</c>.</summary>
