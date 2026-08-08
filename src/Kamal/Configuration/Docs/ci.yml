@@ -160,7 +160,7 @@
 #   audit:
 #     runs-on: ubuntu-latest
 #     steps:
-#       - uses: actions/checkout@v4
+#       - uses: actions/checkout@v7
 #       - uses: mvdmio/kamal.net/actions/setup@v2.11.2
 #         with:
 #           version: 2.11.2
@@ -175,7 +175,7 @@
 #   deploy:
 #     runs-on: ubuntu-latest
 #     steps:
-#       - uses: actions/checkout@v4
+#       - uses: actions/checkout@v7
 #       - uses: mvdmio/kamal.net/actions/deploy@v2.11.2
 #         with:
 #           version: 2.11.2
