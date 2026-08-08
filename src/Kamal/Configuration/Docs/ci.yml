@@ -56,7 +56,10 @@
 # SSH_PRIVATE_KEY=$(printenv SSH_PRIVATE_KEY)
 # ```
 #
-# See also: `kamal docs ssh`.
+# Passphrase-protected keys need `KAMAL_SSH_PASSPHRASE`, `ssh.passphrase`, or a TTY
+# prompt — never hang silently in CI. Prefer agent / unencrypted key material there.
+# Host keys are accepted by default; opt into `ssh.strict_host_key_checking` (and
+# known_hosts) when you need verification. See `kamal docs ssh`.
 
 # Config expansion (and migrating from ERB)
 #

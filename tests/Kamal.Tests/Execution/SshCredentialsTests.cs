@@ -38,6 +38,21 @@ public class SshCredentialsTests
       -----END OPENSSH PRIVATE KEY-----
       """;
 
+   // Encrypted with passphrase "test-passphrase" (aes256-ctr OpenSSH).
+   private const string EncryptedPrivateKeyPem =
+      """
+      -----BEGIN OPENSSH PRIVATE KEY-----
+      b3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0AAAAGAAAABBTvw4iRk
+      FThfHhwekt5XEWAAAAGAAAAAEAAAAzAAAAC3NzaC1lZDI1NTE5AAAAILrwLVQGQacPtx7/
+      MBFvQX4uB+SlHHpNCM24NrVMU2LJAAAAkIk1b97rB/3lzZslxgXX8ATuGhliAo9b23l7LG
+      jneyPe31MUIA8NbFX4DUkT+ePLZw7SspfCIeXXdlxjpOMEYHzVI4iqozO+ieJizeb48K+v
+      iil9wjPC4OlU11yJaM5FY9pkNvXUQwinA5TY/LBFpvpU3e/4R1l7+uP9tXrAcpfnpe5N7j
+      cZXMzbjBuZvFZCXw==
+      -----END OPENSSH PRIVATE KEY-----
+      """;
+
+   private const string EncryptedKeyPassphrase = "test-passphrase";
+
    [Fact]
    public void UsesEnvironmentPrivateKeyWhenNoConfiguredKeys()
    {
@@ -172,6 +187,137 @@ public class SshCredentialsTests
    }
 
    [Fact]
+   public void PassphraseEnvironmentVariableNameIsKAMAL_SSH_PASSPHRASE()
+   {
+      Assert.Equal("KAMAL_SSH_PASSPHRASE", SshCredentials.PassphraseEnvironmentVariable);
+   }
+
+   [Fact]
+   public void EncryptedConfiguredKeyDataLoadsWithPassphrase()
+   {
+      var ssh = NewSsh(new Cfg { ["key_data"] = L(EncryptedPrivateKeyPem) });
+      var options = IsolatedOptions(passphrase: EncryptedKeyPassphrase);
+
+      var resolved = SshCredentials.Resolve(ssh, options);
+
+      Assert.Equal(SshCredentialSource.Configured, resolved.Source);
+      Assert.Single(resolved.Keys);
+   }
+
+   [Fact]
+   public void EncryptedConfiguredKeyFileLoadsWithPassphrase()
+   {
+      using var dir = new TempKeyDir();
+      var path = dir.WriteKey("encrypted", EncryptedPrivateKeyPem);
+      var ssh = NewSsh(new Cfg { ["keys"] = L(path) });
+      var options = IsolatedOptions(passphrase: EncryptedKeyPassphrase);
+
+      var resolved = SshCredentials.Resolve(ssh, options);
+
+      Assert.Equal(SshCredentialSource.Configured, resolved.Source);
+      Assert.Single(resolved.Keys);
+   }
+
+   [Fact]
+   public void EncryptedConfiguredKeyWithoutPassphraseNonInteractiveFailsClearly()
+   {
+      var ssh = NewSsh(new Cfg { ["key_data"] = L(EncryptedPrivateKeyPem) });
+      var options = IsolatedOptions(passphrase: null, interactive: false);
+
+      var ex = Assert.Throws<InvalidOperationException>(() => SshCredentials.Resolve(ssh, options));
+
+      Assert.Contains("encrypted", ex.Message, StringComparison.OrdinalIgnoreCase);
+      Assert.Contains(SshCredentials.PassphraseEnvironmentVariable, ex.Message);
+      Assert.DoesNotContain("silently", ex.Message, StringComparison.OrdinalIgnoreCase);
+   }
+
+   [Fact]
+   public void EncryptedConfiguredKeyIsNotSilentlySkippedWhenPassphraseMissing()
+   {
+      var ssh = NewSsh(new Cfg { ["key_data"] = L(EncryptedPrivateKeyPem) });
+      // Env key would win if configured keys were skipped.
+      var options = IsolatedOptions(
+         envKey: TestPrivateKeyPem,
+         passphrase: null,
+         interactive: false);
+
+      var ex = Assert.Throws<InvalidOperationException>(() => SshCredentials.Resolve(ssh, options));
+      Assert.Contains(SshCredentials.PassphraseEnvironmentVariable, ex.Message);
+   }
+
+   [Fact]
+   public void EncryptedKeyPromptsOnlyWhenInteractive()
+   {
+      var ssh = NewSsh(new Cfg { ["key_data"] = L(EncryptedPrivateKeyPem) });
+      var prompted = false;
+      var options = new SshCredentialLoadOptions
+      {
+         GetEnvironmentPrivateKey = () => null,
+         GetPassphrase = () => null,
+         GetAgentIdentities = () => [],
+         GetDefaultIdentities = () => [],
+         IsInteractive = () => true,
+         PromptForPassphrase = _ =>
+         {
+            prompted = true;
+            return EncryptedKeyPassphrase;
+         }
+      };
+
+      var resolved = SshCredentials.Resolve(ssh, options);
+
+      Assert.True(prompted);
+      Assert.Equal(SshCredentialSource.Configured, resolved.Source);
+      Assert.Single(resolved.Keys);
+   }
+
+   [Fact]
+   public void EncryptedEnvKeyLoadsWithPassphraseFromProcessEnvironment()
+   {
+      var ssh = NewSsh();
+      using var keyEnv = new EnvVarScope(SshCredentials.PrivateKeyEnvironmentVariable, EncryptedPrivateKeyPem);
+      using var passEnv = new EnvVarScope(SshCredentials.PassphraseEnvironmentVariable, EncryptedKeyPassphrase);
+      var options = new SshCredentialLoadOptions
+      {
+         GetAgentIdentities = () => [],
+         GetDefaultIdentities = () => []
+      };
+
+      var resolved = SshCredentials.Resolve(ssh, options);
+
+      Assert.Equal(SshCredentialSource.EnvironmentKey, resolved.Source);
+      Assert.Single(resolved.Keys);
+   }
+
+   [Fact]
+   public void ConfigPassphraseSecretUnlocksEncryptedKeyData()
+   {
+      using var secrets = new TestSecrets($"KEY_PASS={EncryptedKeyPassphrase}");
+      var deploy = BaseDeploy();
+      deploy["ssh"] = new Cfg
+      {
+         ["key_data"] = L(EncryptedPrivateKeyPem),
+         ["passphrase"] = "KEY_PASS"
+      };
+      var ssh = new KamalConfiguration(deploy, secrets: secrets.Secrets).Ssh;
+      var options = IsolatedOptions(passphrase: null, interactive: false);
+      // Config passphrase is read from Ssh; isolated GetPassphrase null must not block config.
+      options = new SshCredentialLoadOptions
+      {
+         GetEnvironmentPrivateKey = () => null,
+         GetPassphrase = null, // allow config / env; no env passphrase set
+         GetAgentIdentities = () => [],
+         GetDefaultIdentities = () => [],
+         IsInteractive = () => false
+      };
+
+      var resolved = SshCredentials.Resolve(ssh, options);
+
+      Assert.Equal(SshCredentialSource.Configured, resolved.Source);
+      Assert.Single(resolved.Keys);
+   }
+
+   [Fact]
    public void ResolveReadsKAMAL_SSH_PRIVATE_KEYFromProcessEnvironment()
    {
       var ssh = NewSsh();
@@ -212,10 +358,15 @@ public class SshCredentialsTests
    private static SshCredentialLoadOptions IsolatedOptions(
       string? envKey = null,
       IReadOnlyList<IPrivateKeySource>? agentKeys = null,
-      IReadOnlyList<IPrivateKeySource>? defaultKeys = null) =>
+      IReadOnlyList<IPrivateKeySource>? defaultKeys = null,
+      string? passphrase = null,
+      bool interactive = false) =>
       new()
       {
          GetEnvironmentPrivateKey = () => envKey,
+         GetPassphrase = () => passphrase,
+         IsInteractive = () => interactive,
+         PromptForPassphrase = _ => null,
          GetAgentIdentities = () => agentKeys ?? [],
          GetDefaultIdentities = () => defaultKeys ?? []
       };

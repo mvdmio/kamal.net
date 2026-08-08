@@ -2,6 +2,7 @@ using System.Text;
 using Kamal.Configuration;
 using Kamal.Utils;
 using Renci.SshNet;
+using Renci.SshNet.Common;
 using SshNet.Agent;
 
 namespace Kamal.Execution;
@@ -52,6 +53,15 @@ internal sealed class SshCredentialLoadOptions
    /// <summary>Returns PEM text for <c>KAMAL_SSH_PRIVATE_KEY</c>, or null/empty when unset.</summary>
    public Func<string?>? GetEnvironmentPrivateKey { get; init; }
 
+   /// <summary>Returns passphrase for encrypted keys (<c>KAMAL_SSH_PASSPHRASE</c>), or null when unset.</summary>
+   public Func<string?>? GetPassphrase { get; init; }
+
+   /// <summary>True when an interactive passphrase prompt is allowed (TTY present).</summary>
+   public Func<bool>? IsInteractive { get; init; }
+
+   /// <summary>Prompts for a passphrase (only invoked when interactive). Argument is a key description.</summary>
+   public Func<string, string?>? PromptForPassphrase { get; init; }
+
    /// <summary>Returns identities from ssh-agent (empty when agent is unavailable or has no keys).</summary>
    public Func<IReadOnlyList<IPrivateKeySource>>? GetAgentIdentities { get; init; }
 
@@ -67,6 +77,9 @@ internal static class SshCredentials
 {
    /// <summary>Environment variable holding PEM private-key material (CI convenience).</summary>
    public const string PrivateKeyEnvironmentVariable = "KAMAL_SSH_PRIVATE_KEY";
+
+   /// <summary>Environment variable holding the passphrase for encrypted private keys.</summary>
+   public const string PassphraseEnvironmentVariable = "KAMAL_SSH_PASSPHRASE";
 
    public static ConnectionInfo BuildConnectionInfo(
       string host,
@@ -99,14 +112,16 @@ internal static class SshCredentials
    /// </summary>
    public static SshCredentialSet Resolve(Ssh ssh, SshCredentialLoadOptions? loadOptions = null)
    {
-      var configured = LoadConfiguredKeyFiles(ssh);
+      var passphraseState = new PassphraseState(ssh, loadOptions);
+
+      var configured = LoadConfiguredKeyFiles(ssh, passphraseState);
       if (configured.Count > 0)
          return new SshCredentialSet(SshCredentialSource.Configured, configured);
 
       var envPem = (loadOptions?.GetEnvironmentPrivateKey ?? GetEnvironmentPrivateKey)();
       if (!string.IsNullOrWhiteSpace(envPem))
       {
-         var envKey = LoadPemKey(envPem);
+         var envKey = LoadPemKey(envPem!, $"{PrivateKeyEnvironmentVariable} private key", passphraseState, required: true);
          return new SshCredentialSet(SshCredentialSource.EnvironmentKey, [envKey]);
       }
 
@@ -114,9 +129,18 @@ internal static class SshCredentials
       if (agentKeys.Count > 0)
          return new SshCredentialSet(SshCredentialSource.Agent, agentKeys);
 
-      var defaults = (loadOptions?.GetDefaultIdentities ?? LoadDefaultIdentityFiles)();
-      if (defaults.Count > 0)
-         return new SshCredentialSet(SshCredentialSource.DefaultIdentityFiles, defaults);
+      if (loadOptions?.GetDefaultIdentities is { } customDefaults)
+      {
+         var defaults = customDefaults();
+         if (defaults.Count > 0)
+            return new SshCredentialSet(SshCredentialSource.DefaultIdentityFiles, defaults);
+      }
+      else
+      {
+         var defaults = LoadDefaultIdentityFiles(passphraseState);
+         if (defaults.Count > 0)
+            return new SshCredentialSet(SshCredentialSource.DefaultIdentityFiles, defaults);
+      }
 
       return new SshCredentialSet(SshCredentialSource.None, []);
    }
@@ -124,7 +148,10 @@ internal static class SshCredentials
    private static string? GetEnvironmentPrivateKey() =>
       Environment.GetEnvironmentVariable(PrivateKeyEnvironmentVariable);
 
-   private static List<IPrivateKeySource> LoadConfiguredKeyFiles(Ssh ssh)
+   private static string? GetEnvironmentPassphrase() =>
+      Environment.GetEnvironmentVariable(PassphraseEnvironmentVariable);
+
+   private static List<IPrivateKeySource> LoadConfiguredKeyFiles(Ssh ssh, PassphraseState passphraseState)
    {
       var keyFiles = new List<IPrivateKeySource>();
 
@@ -133,17 +160,69 @@ internal static class SshCredentials
          var path = ExpandHome(RubyHelpers.RubyToS(key));
 
          if (File.Exists(path))
-            keyFiles.Add(new PrivateKeyFile(path));
+            keyFiles.Add(LoadKeyFile(path, path, passphraseState, required: true));
       }
 
       foreach (var keyData in ssh.KeyData ?? [])
-         keyFiles.Add(LoadPemKey(keyData));
+         keyFiles.Add(LoadPemKey(keyData, "ssh.key_data private key", passphraseState, required: true));
 
       return keyFiles;
    }
 
-   private static PrivateKeyFile LoadPemKey(string pem) =>
-      new(new MemoryStream(Encoding.UTF8.GetBytes(pem)));
+   private static PrivateKeyFile LoadPemKey(string pem, string description, PassphraseState passphraseState, bool required) =>
+      LoadKey(
+         description,
+         passphraseState,
+         required,
+         passphrase => passphrase is null
+            ? new PrivateKeyFile(new MemoryStream(Encoding.UTF8.GetBytes(pem)))
+            : new PrivateKeyFile(new MemoryStream(Encoding.UTF8.GetBytes(pem)), passphrase));
+
+   private static PrivateKeyFile LoadKeyFile(string path, string description, PassphraseState passphraseState, bool required) =>
+      LoadKey(
+         description,
+         passphraseState,
+         required,
+         passphrase => passphrase is null
+            ? new PrivateKeyFile(path)
+            : new PrivateKeyFile(path, passphrase));
+
+   private static PrivateKeyFile LoadKey(
+      string description,
+      PassphraseState passphraseState,
+      bool required,
+      Func<string?, PrivateKeyFile> open)
+   {
+      try
+      {
+         // Prefer a known passphrase when one is already available (unencrypted keys ignore it).
+         var known = passphraseState.TryGetKnownPassphrase();
+         if (known is not null)
+            return open(known);
+
+         return open(null);
+      }
+      catch (SshPassPhraseNullOrEmptyException)
+      {
+         var passphrase = passphraseState.RequirePassphrase(description);
+         try
+         {
+            return open(passphrase);
+         }
+         catch (SshException exception)
+         {
+            throw new InvalidOperationException(
+               $"Failed to decrypt {description}: incorrect passphrase or corrupt key. {exception.Message}",
+               exception);
+         }
+      }
+      catch (SshException exception) when (required)
+      {
+         throw new InvalidOperationException(
+            $"Failed to load {description}: {exception.Message}",
+            exception);
+      }
+   }
 
    private static IReadOnlyList<IPrivateKeySource> LoadAgentIdentities()
    {
@@ -165,30 +244,47 @@ internal static class SshCredentials
       }
    }
 
-   private static IReadOnlyList<IPrivateKeySource> LoadDefaultIdentityFiles()
+   private static IReadOnlyList<IPrivateKeySource> LoadDefaultIdentityFiles(PassphraseState passphraseState)
    {
       var keyFiles = new List<IPrivateKeySource>();
       var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
+      var encryptedWithoutPassphrase = new List<string>();
 
       foreach (var name in (string[])["id_ed25519", "id_ecdsa", "id_rsa", "id_dsa"])
       {
          var path = Path.Combine(sshDir, name);
 
-         if (File.Exists(path))
+         if (!File.Exists(path))
+            continue;
+
+         try
          {
-            try
-            {
-               keyFiles.Add(new PrivateKeyFile(path));
-            }
-            catch (Exception)
-            {
-               // Skip unreadable/passphrase-protected default keys (passphrase path is a later step).
-            }
+            keyFiles.Add(LoadKeyFile(path, path, passphraseState, required: false));
          }
+         catch (InvalidOperationException) when (passphraseState.LastFailureWasMissingPassphrase)
+         {
+            encryptedWithoutPassphrase.Add(path);
+         }
+         catch (Exception)
+         {
+            // Skip other unreadable default keys (permissions, corrupt, etc.).
+         }
+      }
+
+      if (keyFiles.Count == 0 && encryptedWithoutPassphrase.Count > 0)
+      {
+         throw new InvalidOperationException(
+            MissingPassphraseMessage(string.Join(", ", encryptedWithoutPassphrase)));
       }
 
       return keyFiles;
    }
+
+   internal static string MissingPassphraseMessage(string keyDescription) =>
+      $"Private key is encrypted but no passphrase is available ({keyDescription}). "
+      + $"Set {PassphraseEnvironmentVariable}, configure ssh.passphrase (secret name or value), "
+      + "or run interactively with a TTY so a passphrase can be prompted. "
+      + "CI should use ssh-agent, unencrypted keys, key_data, or KAMAL_SSH_PRIVATE_KEY without a passphrase.";
 
    private static string ExpandHome(string path)
    {
@@ -196,5 +292,91 @@ internal static class SshCredentials
          return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), path.TrimStart('~', '/', '\\'));
 
       return path;
+   }
+
+   /// <summary>Resolves and caches a passphrase for the current credential resolution.</summary>
+   private sealed class PassphraseState
+   {
+      private readonly Ssh _ssh;
+      private readonly SshCredentialLoadOptions? _loadOptions;
+      private string? _resolved;
+      private bool _resolvedSet;
+
+      public PassphraseState(Ssh ssh, SshCredentialLoadOptions? loadOptions)
+      {
+         _ssh = ssh;
+         _loadOptions = loadOptions;
+      }
+
+      public bool LastFailureWasMissingPassphrase { get; private set; }
+
+      public string? TryGetKnownPassphrase()
+      {
+         if (_resolvedSet)
+            return _resolved;
+
+         var fromOptions = _loadOptions?.GetPassphrase?.Invoke();
+         if (!string.IsNullOrEmpty(fromOptions))
+         {
+            _resolved = fromOptions;
+            _resolvedSet = true;
+            return _resolved;
+         }
+
+         var fromConfig = _ssh.Passphrase;
+         if (!string.IsNullOrEmpty(fromConfig))
+         {
+            _resolved = fromConfig;
+            _resolvedSet = true;
+            return _resolved;
+         }
+
+         // Only consult process env when no GetPassphrase seam was provided (or it returned empty).
+         if (_loadOptions?.GetPassphrase is null)
+         {
+            var fromEnv = GetEnvironmentPassphrase();
+            if (!string.IsNullOrEmpty(fromEnv))
+            {
+               _resolved = fromEnv;
+               _resolvedSet = true;
+               return _resolved;
+            }
+         }
+
+         return null;
+      }
+
+      public string RequirePassphrase(string keyDescription)
+      {
+         LastFailureWasMissingPassphrase = false;
+
+         var known = TryGetKnownPassphrase();
+         if (!string.IsNullOrEmpty(known))
+            return known!;
+
+         var interactive = (_loadOptions?.IsInteractive ?? IsInteractiveConsole)();
+         if (interactive)
+         {
+            var prompted = (_loadOptions?.PromptForPassphrase ?? PromptForPassphraseConsole)(keyDescription);
+            if (!string.IsNullOrEmpty(prompted))
+            {
+               _resolved = prompted;
+               _resolvedSet = true;
+               return prompted!;
+            }
+         }
+
+         LastFailureWasMissingPassphrase = true;
+         throw new InvalidOperationException(MissingPassphraseMessage(keyDescription));
+      }
+
+      private static bool IsInteractiveConsole() =>
+         !Console.IsInputRedirected && Environment.UserInteractive;
+
+      private static string? PromptForPassphraseConsole(string keyDescription)
+      {
+         Console.Error.Write($"Enter passphrase for {keyDescription}: ");
+         return Console.ReadLine();
+      }
    }
 }

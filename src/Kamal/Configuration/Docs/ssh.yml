@@ -88,6 +88,31 @@ ssh:
   #
   # Wrong or missing usable credentials fail at connect time.
 
+  # Passphrase-protected keys
+  #
+  # Encrypted private keys (configured `keys` / `key_data`, `KAMAL_SSH_PRIVATE_KEY`,
+  # or default `~/.ssh/id_*`) are never silently skipped solely because they need a
+  # passphrase. Supply a passphrase via (first match wins):
+  #
+  # 1. `KAMAL_SSH_PASSPHRASE` environment variable
+  # 2. `ssh.passphrase` — secret name (preferred) or literal value
+  # 3. Interactive prompt — only when a TTY is present (not in typical CI)
+  #
+  # Non-interactive runs without a passphrase fail immediately with a clear error
+  # (no hang on a prompt). Prefer unencrypted keys, ssh-agent, or
+  # `KAMAL_SSH_PRIVATE_KEY` / `key_data` without a passphrase in CI.
+  passphrase: SSH_KEY_PASSPHRASE
+
+  # Host key verification
+  #
+  # Default is permissive: unknown host keys are accepted (existing deploys keep
+  # working). Set `strict_host_key_checking` to true to verify remote host keys
+  # against OpenSSH known_hosts file(s). When strict and `known_hosts` is omitted,
+  # `~/.ssh/known_hosts` is used. Verification uses the logical host name (including
+  # when connecting through a jump host).
+  strict_host_key_checking: false
+  known_hosts: "~/.ssh/known_hosts"
+
   # Config
   #
   # Set to true to load the default OpenSSH config files (~/.ssh/config,

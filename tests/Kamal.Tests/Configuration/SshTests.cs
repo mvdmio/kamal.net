@@ -93,4 +93,47 @@ public class SshTests
       var config = new KamalConfiguration(_deploy, secrets: secrets.Secrets);
       Assert.Equal(["secret_ssh_key", "second_secret_ssh_key"], (List<string>)config.Ssh.Options["key_data"]!);
    }
+
+   [Fact]
+   public void StrictHostKeyCheckingDefaultsToFalse()
+   {
+      Assert.False(Config.Ssh.StrictHostKeyChecking);
+   }
+
+   [Fact]
+   public void StrictHostKeyCheckingCanBeEnabled()
+   {
+      _deploy["ssh"] = new Cfg { ["strict_host_key_checking"] = true };
+      Assert.True(Config.Ssh.StrictHostKeyChecking);
+      Assert.Equal(true, Config.Ssh.Options["strict_host_key_checking"]);
+   }
+
+   [Fact]
+   public void KnownHostsDefaultsToUserKnownHostsWhenStrict()
+   {
+      _deploy["ssh"] = new Cfg { ["strict_host_key_checking"] = true };
+      var paths = Config.Ssh.ResolvedKnownHostsPaths();
+      Assert.Contains(paths, p => p.EndsWith(Path.Combine(".ssh", "known_hosts"), StringComparison.Ordinal));
+   }
+
+   [Fact]
+   public void KnownHostsCanBeConfigured()
+   {
+      _deploy["ssh"] = new Cfg
+      {
+         ["strict_host_key_checking"] = true,
+         ["known_hosts"] = "/tmp/custom_known_hosts"
+      };
+      Assert.Equal(["/tmp/custom_known_hosts"], Config.Ssh.ResolvedKnownHostsPaths());
+   }
+
+   [Fact]
+   public void PassphraseResolvesFromSecrets()
+   {
+      using var secrets = new TestSecrets("SSH_KEY_PASSPHRASE=s3cret");
+      _deploy["ssh"] = new Cfg { ["passphrase"] = "SSH_KEY_PASSPHRASE" };
+
+      var config = new KamalConfiguration(_deploy, secrets: secrets.Secrets);
+      Assert.Equal("s3cret", config.Ssh.Passphrase);
+   }
 }

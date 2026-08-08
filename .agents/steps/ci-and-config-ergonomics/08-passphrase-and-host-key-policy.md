@@ -1,6 +1,6 @@
 # 08 — Passphrase-capable keys and opt-in host-key policy
 
-Status: pending
+Status: done
 
 ## What to build
 
@@ -32,9 +32,13 @@ Projects: `src/Kamal`, `tests/Kamal.Tests`
 
 ## Acceptance criteria
 
-- [ ] Passphrase-protected configured keys are not silently skipped
-- [ ] With a passphrase available, encrypted keys load successfully
-- [ ] Without a TTY and without a passphrase, runs fail clearly (no indefinite prompt)
-- [ ] Host-key verification remains permissive by default
-- [ ] Opt-in strict / known_hosts mode enables verification for teams that set the knob
-- [ ] Docs cover the new behaviour; tests assert external behaviour; `dotnet test` green
+- [x] Passphrase-protected configured keys are not silently skipped
+- [x] With a passphrase available, encrypted keys load successfully
+- [x] Without a TTY and without a passphrase, runs fail clearly (no indefinite prompt)
+- [x] Host-key verification remains permissive by default
+- [x] Opt-in strict / known_hosts mode enables verification for teams that set the knob
+- [x] Docs cover the new behaviour; tests assert external behaviour; `dotnet test` green
+
+## Outcome
+
+Passphrase-capable key loading in `SshCredentials`: encrypted keys from `keys`/`key_data`, `KAMAL_SSH_PRIVATE_KEY`, and default `id_*` are never silently skipped for passphrase alone. Passphrase sources: `KAMAL_SSH_PASSPHRASE`, `ssh.passphrase` (secret name or value), then TTY prompt only when interactive. Non-TTY without passphrase fails with a clear `InvalidOperationException` (no hang). Host-key policy remains permissive by default; opt-in `ssh.strict_host_key_checking` verifies against `known_hosts` (default `~/.ssh/known_hosts` or `ssh.known_hosts`) via `SshHostKeyPolicy` on `SshBackend` / SFTP / port-forwarding clients (logical host through jumps). Docs updated in `ssh.yml` and a CI note. Tests: passphrase load/fail/prompt and known_hosts trust in `SshCredentialsTests` / `SshHostKeyPolicyTests` / `SshTests`. `dotnet test`: 861 passed. Footprint matched.

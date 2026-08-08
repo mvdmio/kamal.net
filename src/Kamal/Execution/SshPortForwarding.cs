@@ -36,10 +36,12 @@ public sealed class SshPortForwarding : IDisposable
       {
          foreach (var host in hosts)
          {
-            var client = new SshClient(BuildConnectionInfo(host, portOverride ?? TargetPort(ssh), ssh, userOverride))
+            var sshPort = portOverride ?? TargetPort(ssh);
+            var client = new SshClient(BuildConnectionInfo(host, sshPort, ssh, userOverride))
             {
                KeepAliveInterval = TimeSpan.FromSeconds(30)
             };
+            SshHostKeyPolicy.Apply(client, host, sshPort, ssh);
 
             forwarding._resources.Add(client);
             client.Connect();

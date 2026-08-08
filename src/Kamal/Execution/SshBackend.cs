@@ -11,8 +11,8 @@ namespace Kamal.Execution;
 /// <summary>
 /// SSH backend on SSH.NET: one pooled connection per host honoring <c>Kamal.Configuration.Ssh</c>
 /// (user, port, keys, key_data, jump proxy) and <c>Kamal.Configuration.Sshkit</c> (pool idle
-/// timeout, max concurrent starts). Host key verification is relaxed (SSH.NET accepts unknown
-/// host keys by default), matching Kamal's permissive known-hosts behavior.
+/// timeout, max concurrent starts). Host key verification is permissive by default (accept any
+/// host key); set <c>ssh.strict_host_key_checking: true</c> to verify against known_hosts.
 /// A raw <c>proxy_command</c> is not supported and throws <see cref="NotSupportedException"/>.
 /// </summary>
 public sealed class SshBackend : BackendBase
@@ -129,9 +129,12 @@ public sealed class SshBackend : BackendBase
                return await ConnectViaJump(host, jump, ssh, cancellationToken).ConfigureAwait(false);
 
             default:
-               var client = NewClient(BuildConnectionInfo(host, TargetPort(ssh), ssh));
+            {
+               var port = TargetPort(ssh);
+               var client = NewClient(BuildConnectionInfo(host, port, ssh), host, port, ssh);
                await ConnectClientAsync(client, host, cancellationToken).ConfigureAwait(false);
                return new PooledSshConnection(client);
+            }
          }
       }
       catch (ExecuteError)
@@ -185,17 +188,23 @@ public sealed class SshBackend : BackendBase
          throw new NotSupportedException("Chained SSH jump hosts (comma-separated ssh.proxy) are not supported by kamal.net.");
 
       var (jumpUser, jumpHost, jumpPort) = ParseJumpSpec(jump.JumpProxies);
-      var jumpClient = NewClient(BuildConnectionInfo(jumpHost, jumpPort, ssh, userOverride: jumpUser));
+      var jumpClient = NewClient(BuildConnectionInfo(jumpHost, jumpPort, ssh, userOverride: jumpUser), jumpHost, jumpPort, ssh);
 
       try
       {
          await ConnectClientAsync(jumpClient, jumpHost, cancellationToken).ConfigureAwait(false);
 
-         var forwardedPort = new ForwardedPortLocal("127.0.0.1", 0u, host, (uint)TargetPort(ssh));
+         var targetPort = TargetPort(ssh);
+         var forwardedPort = new ForwardedPortLocal("127.0.0.1", 0u, host, (uint)targetPort);
          jumpClient.AddForwardedPort(forwardedPort);
          forwardedPort.Start();
 
-         var client = NewClient(BuildConnectionInfo("127.0.0.1", (int)forwardedPort.BoundPort, ssh));
+         // Logical host is the jump target for known_hosts; connection goes via localhost forward.
+         var client = NewClient(
+            BuildConnectionInfo("127.0.0.1", (int)forwardedPort.BoundPort, ssh),
+            host,
+            targetPort,
+            ssh);
          await ConnectClientAsync(client, host, cancellationToken).ConfigureAwait(false);
 
          return new PooledSshConnection(client, jumpClient, forwardedPort);
@@ -207,9 +216,11 @@ public sealed class SshBackend : BackendBase
       }
    }
 
-   private static SshClient NewClient(ConnectionInfo connectionInfo)
+   private static SshClient NewClient(ConnectionInfo connectionInfo, string host, int port, Ssh ssh)
    {
-      return new SshClient(connectionInfo) { KeepAliveInterval = TimeSpan.FromSeconds(30) };
+      var client = new SshClient(connectionInfo) { KeepAliveInterval = TimeSpan.FromSeconds(30) };
+      SshHostKeyPolicy.Apply(client, host, port, ssh);
+      return client;
    }
 
    private static (string? User, string Host, int Port) ParseJumpSpec(string spec)
@@ -254,11 +265,13 @@ public sealed class SshBackend : BackendBase
       var ssh = ConfiguredSsh;
       var connection = await SshConnectionPool.GetAsync(Host, ConnectAsync, cancellationToken).ConfigureAwait(false);
 
+      var port = TargetPort(ssh);
       var connectionInfo = connection.ForwardedPort is { } forwardedPort
          ? BuildConnectionInfo("127.0.0.1", (int)forwardedPort.BoundPort, ssh)
-         : BuildConnectionInfo(Host, TargetPort(ssh), ssh);
+         : BuildConnectionInfo(Host, port, ssh);
 
       var sftp = new SftpClient(connectionInfo);
+      SshHostKeyPolicy.Apply(sftp, Host, port, ssh);
       await sftp.ConnectAsync(cancellationToken).ConfigureAwait(false);
 
       return sftp;

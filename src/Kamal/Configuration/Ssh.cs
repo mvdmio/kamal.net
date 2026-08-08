@@ -74,6 +74,56 @@ public sealed class Ssh
    public string LogLevel => RubyHelpers.RubyToS(_sshConfig.Fetch("log_level", "fatal"));
 
    /// <summary>
+   /// Passphrase for encrypted private keys. When the value matches a secret name, the secret
+   /// is used; otherwise the string is used as the passphrase. Prefer
+   /// <c>KAMAL_SSH_PASSPHRASE</c> or secrets over inline passphrases.
+   /// </summary>
+   public string? Passphrase
+   {
+      get
+      {
+         if (_sshConfig.Get("passphrase") is not { } raw || !RubyHelpers.IsPresent(raw))
+            return null;
+
+         var value = RubyHelpers.RubyToS(raw);
+         return _secrets.ContainsKey(value) ? _secrets[value] : value;
+      }
+   }
+
+   /// <summary>
+   /// When true, verify remote host keys against <c>known_hosts</c> files. Default is false
+   /// (permissive — accept any host key), matching prior Kamal.NET behaviour.
+   /// </summary>
+   public bool StrictHostKeyChecking =>
+      _sshConfig.Get("strict_host_key_checking") is true
+      || string.Equals(RubyHelpers.RubyToS(_sshConfig.Get("strict_host_key_checking")), "true", StringComparison.OrdinalIgnoreCase);
+
+   /// <summary>
+   /// Configured known_hosts path(s). When strict checking is on and this is unset, defaults to
+   /// <c>~/.ssh/known_hosts</c> via <see cref="ResolvedKnownHostsPaths"/>.
+   /// </summary>
+   public object? KnownHosts => _sshConfig.Get("known_hosts");
+
+   /// <summary>Expanded known_hosts file paths used when <see cref="StrictHostKeyChecking"/> is on.</summary>
+   public IReadOnlyList<string> ResolvedKnownHostsPaths()
+   {
+      var raw = KnownHosts;
+      if (raw is null || (raw is string s && string.IsNullOrWhiteSpace(s)))
+      {
+         return
+         [
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh", "known_hosts")
+         ];
+      }
+
+      var list = RubyHelpers.AsList(raw) ?? [raw];
+      return list
+         .Select(entry => ExpandHome(RubyHelpers.RubyToS(entry)))
+         .Where(path => path.Length > 0)
+         .ToList();
+   }
+
+   /// <summary>
    /// Port of <c>options</c>; the Ruby version also includes a stderr logger, which the
    /// C# port leaves to the SSH layer (deviation).
    /// </summary>
@@ -91,11 +141,24 @@ public sealed class Ssh
             ["keys_only"] = KeysOnly,
             ["keys"] = Keys,
             ["key_data"] = KeyData,
-            ["config"] = Config
+            ["config"] = Config,
+            ["passphrase"] = Passphrase,
+            ["strict_host_key_checking"] = StrictHostKeyChecking ? true : null,
+            ["known_hosts"] = KnownHosts
          };
 
          return Compact(options);
       }
+   }
+
+   private static string ExpandHome(string path)
+   {
+      if (path.StartsWith("~/", StringComparison.Ordinal) || path == "~")
+         return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            path.TrimStart('~', '/', '\\'));
+
+      return path;
    }
 
    public OrderedDictionary<string, object?> ToH()
