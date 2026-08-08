@@ -1,4 +1,3 @@
-using System.Text;
 using Kamal.Configuration;
 using Kamal.Utils;
 using Renci.SshNet;
@@ -86,67 +85,5 @@ public sealed class SshPortForwarding : IDisposable
    private static int TargetPort(Ssh ssh) => Convert.ToInt32(RubyHelpers.RubyToS(ssh.Port));
 
    private static ConnectionInfo BuildConnectionInfo(string host, int port, Ssh ssh, string? userOverride)
-   {
-      var user = userOverride ?? ssh.User;
-      var keyFiles = LoadKeyFiles(ssh);
-      var methods = new List<AuthenticationMethod>();
-
-      if (keyFiles.Count > 0)
-         methods.Add(new PrivateKeyAuthenticationMethod(user, keyFiles.Cast<IPrivateKeySource>().ToArray()));
-
-      methods.Add(new NoneAuthenticationMethod(user));
-
-      return new ConnectionInfo(host, port, user, methods.ToArray())
-      {
-         Timeout = TimeSpan.FromSeconds(30)
-      };
-   }
-
-   private static List<PrivateKeyFile> LoadKeyFiles(Ssh ssh)
-   {
-      var keyFiles = new List<PrivateKeyFile>();
-
-      foreach (var key in RubyHelpers.AsList(ssh.Keys) ?? [])
-      {
-         var path = ExpandHome(RubyHelpers.RubyToS(key));
-
-         if (File.Exists(path))
-            keyFiles.Add(new PrivateKeyFile(path));
-      }
-
-      foreach (var keyData in ssh.KeyData ?? [])
-         keyFiles.Add(new PrivateKeyFile(new MemoryStream(Encoding.UTF8.GetBytes(keyData))));
-
-      if (keyFiles.Count > 0)
-         return keyFiles;
-
-      var sshDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
-
-      foreach (var name in (string[])["id_ed25519", "id_ecdsa", "id_rsa", "id_dsa"])
-      {
-         var path = Path.Combine(sshDir, name);
-
-         if (File.Exists(path))
-         {
-            try
-            {
-               keyFiles.Add(new PrivateKeyFile(path));
-            }
-            catch (Exception)
-            {
-               // Skip unreadable/passphrase-protected default keys.
-            }
-         }
-      }
-
-      return keyFiles;
-   }
-
-   private static string ExpandHome(string path)
-   {
-      if (path.StartsWith("~/", StringComparison.Ordinal) || path == "~")
-         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), path.TrimStart('~', '/', '\\'));
-
-      return path;
-   }
+      => SshCredentials.BuildConnectionInfo(host, port, ssh, userOverride);
 }
