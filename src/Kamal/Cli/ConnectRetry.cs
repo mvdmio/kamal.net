@@ -1,3 +1,5 @@
+using Kamal.Utils;
+
 namespace Kamal.Cli;
 
 /// <summary>
@@ -73,17 +75,9 @@ public static class ConnectRetry
          {
             var delay = BackoffDelay(attempt);
             Console.WriteLine(
-               $"Connect failure (attempt {attempt} of {maxAttempts}); retrying in {FormatDelay(delay)}...");
+               $"Connect failure (attempt {attempt} of {maxAttempts}); retrying in {RetryHelpers.FormatDelay(delay)}...");
             await DelayAsync(delay, cancellationToken).ConfigureAwait(false);
          }
       }
-   }
-
-   private static string FormatDelay(TimeSpan delay)
-   {
-      if (delay.TotalSeconds >= 1 && Math.Abs(delay.TotalSeconds - Math.Round(delay.TotalSeconds)) < 0.001)
-         return $"{(int)Math.Round(delay.TotalSeconds)}s";
-
-      return delay.ToString();
    }
 }

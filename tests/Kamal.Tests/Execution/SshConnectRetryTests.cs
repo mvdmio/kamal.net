@@ -84,9 +84,14 @@ public sealed class SshConnectRetryTests : IDisposable
       Assert.Equal(2, delays.Count);
       Assert.Equal([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)], delays);
       Assert.Equal(FailureClass.Connect, FailureClasses.Classify(ex));
-      Assert.Equal(FailureClasses.ExitConnect, FailureClasses.ExitCode(FailureClass.Connect));
       Assert.Contains("web.example", Output);
       Assert.Contains("retrying", Output, StringComparison.OrdinalIgnoreCase);
+
+      // Final exhausted failure stays connect for CI: exit 10 + kamal.failure_class=connect
+      // (same ReportFailure path as FailureClassTests / deploy connect retry).
+      var exitCode = KamalCli.ReportFailure(ex);
+      Assert.Equal(FailureClasses.ExitConnect, exitCode);
+      Assert.Contains(FailureClasses.Marker(FailureClass.Connect), Output);
    }
 
    [Theory]
@@ -168,21 +173,29 @@ public sealed class SshConnectRetryTests : IDisposable
    }
 
    [Fact]
-   public async Task OpenIsSingleRetryUnit_NotReenteredPerInnerStep()
+   public async Task OpenIsSingleRetryUnit_JumpPlusTargetSimulatedAsOneOpen()
    {
-      // Jump-plus-target (or any multi-step open) is one open() invocation per attempt.
+      // Production: ConnectViaJump runs inside ConnectOnceAsync, which is the single open()
+      // passed to SshConnectRetry (jump bastion + target open = one retry unit). No live SSH —
+      // simulate both steps inside open and assert the loop re-enters open once per attempt,
+      // not once per inner step (would be MaxAttempts * 2 if nested incorrectly).
       var openCalls = 0;
+      var jumpSteps = 0;
+      var targetSteps = 0;
 
       await Assert.ThrowsAsync<ExecuteError>(() =>
          SshConnectRetry.RunAsync<object>("target", async _ =>
          {
             openCalls++;
-            // Simulate jump then target both failing as one unit by throwing once from open.
+            jumpSteps++;
             await Task.Yield();
+            targetSteps++;
             throw ConnectFailure("target", "Connection refused");
          }));
 
       Assert.Equal(SshConnectRetry.MaxAttempts, openCalls);
+      Assert.Equal(openCalls, jumpSteps);
+      Assert.Equal(openCalls, targetSteps);
    }
 
    [Fact]

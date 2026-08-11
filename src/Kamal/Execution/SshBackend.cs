@@ -134,7 +134,9 @@ public sealed class SshBackend : BackendBase
                   "ssh.proxy_command is not supported by kamal.net. Configure ssh.proxy (a jump host) instead.");
 
             case SshJumpProxy jump:
-               // Jump bastion plus target open is one retry unit under SshConnectRetry.
+               // Jump bastion + target open is one ConnectOnceAsync unit; SshConnectRetry wraps
+               // this method only (not ConnectViaJump alone), so a glitch on either side retries
+               // the whole open rather than nesting a second retry loop per hop.
                return await ConnectViaJump(host, jump, ssh, cancellationToken).ConfigureAwait(false);
 
             default:

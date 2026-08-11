@@ -1,4 +1,5 @@
 using Kamal.Cli;
+using Kamal.Utils;
 
 namespace Kamal.Execution;
 
@@ -54,20 +55,12 @@ public static class SshConnectRetry
          {
             var delay = BackoffDelay(attempt);
             Console.WriteLine(
-               $"SSH connect failure for {host} (attempt {attempt} of {MaxAttempts}); retrying in {FormatDelay(delay)}...");
+               $"SSH connect failure for {host} (attempt {attempt} of {MaxAttempts}); retrying in {RetryHelpers.FormatDelay(delay)}...");
             await DelayAsync(delay, cancellationToken).ConfigureAwait(false);
          }
       }
 
       // Unreachable: the last attempt either returns or throws outside the when filter.
       throw new InvalidOperationException("SSH connect retry exhausted without a result or exception.");
-   }
-
-   private static string FormatDelay(TimeSpan delay)
-   {
-      if (delay.TotalSeconds >= 1 && Math.Abs(delay.TotalSeconds - Math.Round(delay.TotalSeconds)) < 0.001)
-         return $"{(int)Math.Round(delay.TotalSeconds)}s";
-
-      return delay.ToString();
    }
 }
