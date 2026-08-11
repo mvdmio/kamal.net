@@ -108,7 +108,15 @@ public sealed class SshBackend : BackendBase
    private static Ssh ConfiguredSsh => _sshConfig
       ?? throw new InvalidOperationException("SshBackend has not been configured. Access the Commander config (or call SshBackend.Configure) first.");
 
-   private static async Task<PooledSshConnection> ConnectAsync(string host, CancellationToken cancellationToken)
+   /// <summary>
+   /// Session-open entry used by the pool. Applies <see cref="SshConnectRetry"/> around a single
+   /// establish attempt (direct or jump-plus-target as one unit). The start semaphore is held only
+   /// for each attempt, not across backoff waits, so other hosts are not blocked during delay.
+   /// </summary>
+   private static Task<PooledSshConnection> ConnectAsync(string host, CancellationToken cancellationToken) =>
+      SshConnectRetry.RunAsync(host, ct => ConnectOnceAsync(host, ct), cancellationToken);
+
+   private static async Task<PooledSshConnection> ConnectOnceAsync(string host, CancellationToken cancellationToken)
    {
       var ssh = ConfiguredSsh;
 
@@ -126,6 +134,7 @@ public sealed class SshBackend : BackendBase
                   "ssh.proxy_command is not supported by kamal.net. Configure ssh.proxy (a jump host) instead.");
 
             case SshJumpProxy jump:
+               // Jump bastion plus target open is one retry unit under SshConnectRetry.
                return await ConnectViaJump(host, jump, ssh, cancellationToken).ConfigureAwait(false);
 
             default:
