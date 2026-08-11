@@ -9,6 +9,8 @@ reserved for changes to the port itself.
 
 ## [Unreleased]
 
+## [2.11.3] - 2026-08-11
+
 ### Added
 
 - **SSH connect retry** — when opening an SSH session fails with a connect
@@ -130,7 +132,8 @@ dotnet tool install -g mvdmio.Kamal
   a note.
 - `-h` is `--hosts` (as upstream); use `--help` or `-?` for help.
 
-[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.11.2...HEAD
+[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.11.3...HEAD
+[2.11.3]: https://github.com/mvdmio/kamal.net/compare/v2.11.2...v2.11.3
 [2.11.2]: https://github.com/mvdmio/kamal.net/compare/v2.11.1...v2.11.2
 [2.11.1]: https://github.com/mvdmio/kamal.net/compare/v2.11.0...v2.11.1
 [2.11.0]: https://github.com/mvdmio/kamal.net/releases/tag/v2.11.0
