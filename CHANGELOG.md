@@ -9,6 +9,15 @@ reserved for changes to the port itself.
 
 ## [Unreleased]
 
+### Added
+
+- **SSH connect retry** — when opening an SSH session fails with a connect
+  failure (timeout, refused, reset, unreachable), automatically try again for
+  that host up to three times with a short backoff (1s then 2s). Always prints
+  the host and attempt on each retry. Never retries auth failures. No new
+  config or flags. Optional `kamal deploy --retry` remains the outer opt-in
+  for a full redeploy after session open still fails.
+
 ## [2.11.2] - 2026-08-08
 
 ### Added
