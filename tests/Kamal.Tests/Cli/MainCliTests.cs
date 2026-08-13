@@ -1,4 +1,5 @@
 using Kamal.Cli;
+using Kamal.Execution;
 
 namespace Kamal.Tests.Cli;
 
@@ -174,6 +175,76 @@ public sealed class MainCliTests
       Assert.Contains("Deploy lock already in place!", harness.Output);
       Assert.Contains("Deploy lock found. Run 'kamal lock help' for more information", harness.Output);
       Assert.Contains(FailureClasses.Marker(FailureClass.Lock), harness.Output);
+   }
+
+   [Fact]
+   public async Task DeployWithLockWaitRetriesAndAcquiresWhenFreed()
+   {
+      using var harness = new CliTestHarness();
+      var attempts = 0;
+      harness.Responders.Add((_, command) =>
+      {
+         if (!command.Contains("mkdir .kamal/lock-app", StringComparison.Ordinal))
+            return null;
+
+         attempts++;
+         return attempts <= 2
+            ? new RunResult(1, "", "mkdir: cannot create directory '.kamal/lock-app': File exists\n")
+            : new RunResult(0, "", "");
+      });
+      harness.RespondTo("base64 -d", "Locked by: alice\nVersion: 999\nMessage: Automatic deploy lock\n");
+      harness.Responders.Add((host, command) =>
+      {
+         if (command.Contains("name=^app-web-999$") && harness.CommandsOn(host).Any(c => c.Contains("docker run --detach")))
+            return new RunResult(0, "abc12345678\n", "");
+
+         return null;
+      });
+      CliBase.SleepHandler = _ => Task.CompletedTask;
+
+      var exitCode = await harness.Run("deploy", "--skip-push", "--lock-wait", "--lock-wait-interval", "0", "--lock-wait-timeout", "60");
+
+      Assert.Equal(0, exitCode);
+      Assert.Contains("Acquiring the deploy lock (waiting up to 60s)", harness.Output);
+      Assert.Contains("Deploy lock is held by:", harness.Output);
+      Assert.Contains("Retrying in 0s", harness.Output);
+      Assert.Contains("Releasing the deploy lock", harness.Output);
+      Assert.True(attempts >= 3);
+   }
+
+   [Fact]
+   public async Task DeployWithLockWaitTimesOut()
+   {
+      using var harness = new CliTestHarness();
+      harness.RespondTo("mkdir .kamal/lock-app", "", exitCode: 1, stderr: "mkdir: cannot create directory '.kamal/lock-app': File exists\n");
+      harness.RespondTo("base64 -d", "Locked by: alice\nVersion: 999\nMessage: Automatic deploy lock\n");
+      CliBase.SleepHandler = _ => Task.CompletedTask;
+
+      var exitCode = await harness.Run("deploy", "--skip-push", "--lock-wait", "--lock-wait-timeout", "0", "--lock-wait-interval", "0");
+
+      Assert.Equal(FailureClasses.ExitLock, exitCode);
+      Assert.Contains("Timed out after 0s waiting for the deploy lock", harness.Output);
+      Assert.Contains("Timed out waiting for deploy lock", harness.Output);
+   }
+
+   [Fact]
+   public async Task DeployWithLockWaitFailsImmediatelyWhenLockIsHeldManually()
+   {
+      using var harness = new CliTestHarness();
+      harness.RespondTo("mkdir .kamal/lock-app", "", exitCode: 1, stderr: "mkdir: cannot create directory '.kamal/lock-app': File exists\n");
+      harness.RespondTo("base64 -d", "Locked by: alice\nVersion: 999\nMessage: Stopping deploys for maintenance\n");
+      var slept = false;
+      CliBase.SleepHandler = _ =>
+      {
+         slept = true;
+         return Task.CompletedTask;
+      };
+
+      var exitCode = await harness.Run("deploy", "--skip-push", "--lock-wait", "--lock-wait-timeout", "60", "--lock-wait-interval", "0");
+
+      Assert.Equal(FailureClasses.ExitLock, exitCode);
+      Assert.Contains("held manually", harness.Output);
+      Assert.False(slept);
    }
 
    [Fact]

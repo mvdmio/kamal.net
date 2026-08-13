@@ -65,7 +65,7 @@ public class Passbolt : AdapterBase
       var filterCondition = filterConditions.Count > 0 ? $"--filter '{string.Join(" || ", filterConditions)}'" : "";
       var folderArgs = string.Join(" ", folders.Select(folder => $"--folder {Shellwords.Escape(Id(folder))}"));
 
-      var result = Run($"passbolt list resources {filterCondition} {folderArgs} --json");
+      var result = Run($"passbolt list resources {filterCondition} {folderArgs} --column name --column password --json");
       if (!result.Success)
          throw new InvalidOperationException($"Could not read {RubyString.InspectList(prefixedSecrets)} from Passbolt");
 

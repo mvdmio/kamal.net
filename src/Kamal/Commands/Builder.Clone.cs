@@ -18,7 +18,8 @@ public sealed partial class Builder
          Git(["fetch", "origin"], path: EscapedBuildDirectory),
          Git(["reset", "--hard", Utils.Git.Revision], path: EscapedBuildDirectory),
          Git(["clean", "-fdx"], path: EscapedBuildDirectory),
-         Git(["submodule", "update", "--init"], path: EscapedBuildDirectory)
+         Git(["submodule", "update", "--init"], path: EscapedBuildDirectory),
+         Git(["gc", "--auto", "--quiet"], path: EscapedBuildDirectory)
       ];
    }
 

@@ -31,7 +31,7 @@ public sealed partial class Accessory : CommandsBase
       return Docker("run",
          "--name", ServiceName,
          "--detach",
-         "--restart", "unless-stopped",
+         "--restart", AccessoryConfig.RestartPolicy,
          AccessoryConfig.NetworkArgs,
          Config.LoggingArgs,
          AccessoryConfig.PublishArgs,

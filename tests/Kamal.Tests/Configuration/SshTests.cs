@@ -37,6 +37,14 @@ public class SshTests
 
       _deploy["ssh"] = new Cfg { ["config"] = L("~/config.mine.1", "~/config.mine.2") };
       Assert.Equal(L("~/config.mine.1", "~/config.mine.2"), Config.Ssh.Options["config"]);
+
+      Assert.False(Config.Ssh.Options.ContainsKey("forward_agent"));
+
+      _deploy["ssh"] = new Cfg { ["forward_agent"] = false };
+      Assert.Equal(false, Config.Ssh.Options["forward_agent"]);
+
+      _deploy["ssh"] = new Cfg { ["forward_agent"] = true };
+      Assert.Equal(true, Config.Ssh.Options["forward_agent"]);
    }
 
    [Fact]

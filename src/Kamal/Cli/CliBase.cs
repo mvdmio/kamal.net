@@ -22,6 +22,11 @@ public abstract class CliBase
    /// <summary>Test hook: replaces stdin for <c>confirming</c> prompts.</summary>
    public static Func<string?>? AskHandler { get; set; }
 
+   /// <summary>Test hook: replaces wall-clock sleep for lock-wait retries.</summary>
+   public static Func<int, Task> SleepHandler { get; set; } = seconds => Task.Delay(TimeSpan.FromSeconds(seconds));
+
+   public const string AutomaticDeployLockMessage = "Automatic deploy lock";
+
    protected CliBase(CliContext context)
    {
       Context = context;
@@ -39,7 +44,9 @@ public abstract class CliBase
    /// <summary>Port of Thor's <c>say</c> + the Kamal override that mirrors output to the audit log.</summary>
    protected void Say(string message = "", string? color = null)
    {
-      Console.WriteLine(Colorize(message, color));
+      if (!Options.Raw)
+         Console.WriteLine(Colorize(message, color));
+
       KAMAL.Log(message);
    }
 
@@ -68,12 +75,27 @@ public abstract class CliBase
    protected static void ErrorOut(string message) => Console.Error.WriteLine(message);
 
    /// <summary>Port of <c>puts_by_host</c> from sshkit_with_ext.rb.</summary>
-   protected static void PutsByHost(string host, string output, string type = "App", bool quiet = false)
+   protected static void PutsByHost(string host, string output, string type = "App", bool quiet = false, bool raw = false)
    {
+      if (raw)
+      {
+         Console.Out.Write(output);
+         return;
+      }
+
       if (!quiet)
          Console.WriteLine($"{type} Host: {host}");
 
       Console.WriteLine($"{output}\n");
+   }
+
+   /// <summary>
+   /// Port of <c>with_raw_output</c>: raw output is written straight to stdout for piping,
+   /// so silence command echoing that would otherwise corrupt the byte stream.
+   /// </summary>
+   protected Task WithRawOutput(bool raw, Func<Task> action)
+   {
+      return raw ? KAMAL.WithVerbosity(Verbosity.Error, action) : action();
    }
 
    /// <summary>Port of <c>print_runtime</c>; returns the elapsed seconds.</summary>
@@ -137,21 +159,68 @@ public abstract class CliBase
    {
       await EnsureRunDirectory().ConfigureAwait(false);
 
-      await RaiseIfLocked(async () =>
+      if (KAMAL.LockWait)
+         await AcquireLockWithWait().ConfigureAwait(false);
+      else
       {
-         Say("Acquiring the deploy lock...", Magenta);
-         await On(KAMAL.PrimaryHost!, backend =>
-            backend.Execute(KAMAL.Lock.Acquire("Automatic deploy lock", KAMAL.Config.Version), verbosity: Verbosity.Debug)).ConfigureAwait(false);
-      }).ConfigureAwait(false);
+         await RaiseIfLocked(async () =>
+         {
+            Say("Acquiring the deploy lock...", Magenta);
+            await ExecuteLockAcquire(AutomaticDeployLockMessage).ConfigureAwait(false);
+         }).ConfigureAwait(false);
+      }
 
       KAMAL.HoldingLock = true;
+   }
+
+   protected async Task AcquireLockWithWait()
+   {
+      var timeout = KAMAL.LockWaitTimeout;
+      var interval = KAMAL.LockWaitInterval;
+      var deadline = DateTime.UtcNow.AddSeconds(timeout);
+      var detailsShown = false;
+
+      Say($"Acquiring the deploy lock (waiting up to {timeout}s)...", Magenta);
+
+      while (true)
+      {
+         try
+         {
+            await ExecuteLockAcquire(AutomaticDeployLockMessage).ConfigureAwait(false);
+            break;
+         }
+         catch (LockHeldError)
+         {
+            if (!detailsShown)
+            {
+               var status = await CaptureLockStatus().ConfigureAwait(false);
+
+               Say("Deploy lock is held by:", Magenta);
+               Console.WriteLine(status);
+
+               if (!status.Contains(AutomaticDeployLockMessage))
+                  throw new LockError("Deploy lock held manually, not waiting. Run 'kamal lock help' for more information");
+
+               detailsShown = true;
+            }
+
+            var remaining = (int)(deadline - DateTime.UtcNow).TotalSeconds;
+            if (remaining <= 0)
+            {
+               Say($"Timed out after {timeout}s waiting for the deploy lock", Red);
+               throw new LockError("Timed out waiting for deploy lock");
+            }
+
+            Say($"Retrying in {interval}s ({remaining}s remaining)...", Magenta);
+            await SleepHandler(Math.Min(interval, remaining)).ConfigureAwait(false);
+         }
+      }
    }
 
    protected async Task ReleaseLock()
    {
       Say("Releasing the deploy lock...", Magenta);
-      await On(KAMAL.PrimaryHost!, backend =>
-         backend.Execute(KAMAL.Lock.Release(), verbosity: Verbosity.Debug)).ConfigureAwait(false);
+      await ExecuteLockRelease().ConfigureAwait(false);
 
       KAMAL.HoldingLock = false;
    }
@@ -162,14 +231,55 @@ public abstract class CliBase
       {
          await action().ConfigureAwait(false);
       }
-      catch (ExecuteError e) when (e.Message.Contains("cannot create directory"))
+      catch (LockHeldError)
       {
          Say("Deploy lock already in place!", Red);
-         await On(KAMAL.PrimaryHost!, async backend =>
-            Console.WriteLine(await backend.CaptureWithDebug(KAMAL.Lock.Status()).ConfigureAwait(false))).ConfigureAwait(false);
-
+         Console.WriteLine(await CaptureLockStatus().ConfigureAwait(false));
          throw new LockError("Deploy lock found. Run 'kamal lock help' for more information");
       }
+   }
+
+   protected async Task ExecuteLockAcquire(string message)
+   {
+      try
+      {
+         await On(KAMAL.PrimaryHost!, backend =>
+            backend.Execute(KAMAL.Lock.Acquire(message, KAMAL.Config.Version), verbosity: Verbosity.Debug)).ConfigureAwait(false);
+      }
+      catch (ExecuteError e) when (e.Message.Contains("cannot create directory"))
+      {
+         throw new LockHeldError();
+      }
+   }
+
+   protected async Task ExecuteLockRelease()
+   {
+      try
+      {
+         await On(KAMAL.PrimaryHost!, backend =>
+            backend.Execute(KAMAL.Lock.Release(), verbosity: Verbosity.Debug)).ConfigureAwait(false);
+      }
+      catch (ExecuteError e) when (e.Message.Contains("No such file or directory"))
+      {
+         throw new LockMissingError();
+      }
+   }
+
+   protected async Task<string> CaptureLockStatus()
+   {
+      string? status = null;
+
+      try
+      {
+         await On(KAMAL.PrimaryHost!, async backend =>
+            status = await backend.CaptureWithDebug(KAMAL.Lock.Status()).ConfigureAwait(false)).ConfigureAwait(false);
+      }
+      catch (ExecuteError e) when (e.Message.Contains("No such file or directory"))
+      {
+         throw new LockMissingError();
+      }
+
+      return status ?? "";
    }
 
    // ----- Confirmation ---------------------------------------------------------------------

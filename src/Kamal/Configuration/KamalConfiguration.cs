@@ -12,7 +12,7 @@ namespace Kamal.Configuration;
 public sealed partial class KamalConfiguration
 {
    /// <summary>The Kamal version this port tracks (<c>Kamal::VERSION</c>).</summary>
-   public const string KamalVersion = "2.11.2";
+   public const string KamalVersion = "2.12.0";
 
    public static readonly string[] HooksOutputLevels = ["quiet", "verbose"];
 
@@ -250,6 +250,8 @@ public sealed partial class KamalConfiguration
 
    public int DrainTimeout => Convert.ToInt32(RawConfig.Get("drain_timeout") ?? 30);
 
+   public object? StopTimeout => RawConfig.Get("stop_timeout");
+
    public string RunDirectory => ".kamal";
 
    public string AppsDirectory => RubyHelpers.JoinPath(RunDirectory, "apps");
@@ -424,7 +426,8 @@ public sealed partial class KamalConfiguration
       {
          var runConfigs = ProxyRuns(host);
 
-         // Ruby compares Run instances by identity, so two run configs on one host conflict.
+         // Ruby compares Run instances by value (run_config equality), so identical
+         // inherited configs on one host do not conflict.
          if (runConfigs.Distinct().Count() > 1)
             throw new KamalConfigurationError($"Conflicting proxy run configurations for host {host}");
       }

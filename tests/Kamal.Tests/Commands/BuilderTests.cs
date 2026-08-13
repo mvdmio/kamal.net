@@ -410,6 +410,14 @@ public class BuilderTests : IDisposable
    }
 
    [Fact]
+   public void CloneResetRunsGitGcAutoToBoundPackGrowth()
+   {
+      var cloneResetCommands = NewBuilderCommand().CloneResetSteps().Select(Join).ToList();
+
+      Assert.Contains(cloneResetCommands, command => command.EndsWith(" gc --auto --quiet", StringComparison.Ordinal));
+   }
+
+   [Fact]
    public void LocalBuilderWithLocalRegistryIncludesNetworkHostDriverOption()
    {
       var builder = NewBuilderCommand(new Cfg { ["registry"] = new Cfg { ["server"] = "localhost:5000" } });

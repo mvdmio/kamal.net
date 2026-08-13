@@ -33,10 +33,11 @@ public interface IBackend
       bool raiseOnNonZeroExit = true,
       string? input = null,
       IReadOnlyDictionary<string, string>? env = null,
+      bool strip = true,
       CancellationToken cancellationToken = default);
 
    /// <summary>Port of the <c>capture_with_info</c> extension: capture, logged at INFO.</summary>
-   Task<string> CaptureWithInfo(object?[] command, bool raiseOnNonZeroExit = true, CancellationToken cancellationToken = default);
+   Task<string> CaptureWithInfo(object?[] command, bool raiseOnNonZeroExit = true, bool strip = true, CancellationToken cancellationToken = default);
 
    /// <summary>Port of the <c>capture_with_debug</c> extension: capture, logged at DEBUG.</summary>
    Task<string> CaptureWithDebug(object?[] command, bool raiseOnNonZeroExit = true, CancellationToken cancellationToken = default);

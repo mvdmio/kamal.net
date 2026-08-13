@@ -134,6 +134,23 @@ public class AppTests : IDisposable
    }
 
    [Fact]
+   public void RunWithCustomRestartPolicy()
+   {
+      _config["servers"] = new Cfg
+      {
+         ["web"] = new Cfg
+         {
+            ["hosts"] = L("1.1.1.1"),
+            ["options"] = new Cfg { ["restart"] = "on-failure" }
+         }
+      };
+
+      Assert.Equal(
+         "docker run --detach --restart on-failure --name app-web-999 --network kamal --env KAMAL_CONTAINER_NAME=\"app-web-999\" --env KAMAL_VERSION=\"999\" --env KAMAL_HOST=\"1.1.1.1\" --env-file .kamal/apps/app/env/roles/web.env --log-opt max-size=\"10m\" --label service=\"app\" --label role=\"web\" --label destination dhh/app:999",
+         Join(NewCommand().Run()));
+   }
+
+   [Fact]
    public void Start()
    {
       Assert.Equal("docker start app-web-999", Join(NewCommand().Start()));
@@ -164,6 +181,24 @@ public class AppTests : IDisposable
 
       Assert.Equal(
          "sh -c 'docker ps --latest --quiet --filter label=service=app --filter label=destination= --filter label=role=workers --filter status=running --filter status=restarting --filter ancestor=$(docker image ls --filter reference=dhh/app:latest --format '\\''{{.ID}}'\\'') ; docker ps --latest --quiet --filter label=service=app --filter label=destination= --filter label=role=workers --filter status=running --filter status=restarting' | head -1 | xargs docker stop -t 20",
+         Join(NewCommand(role: "workers").Stop()));
+   }
+
+   [Fact]
+   public void StopWithStopTimeout()
+   {
+      _config["servers"] = new Cfg
+      {
+         ["web"] = new Cfg { ["hosts"] = L("1.1.1.1"), ["stop_timeout"] = 30 },
+         ["workers"] = new Cfg { ["hosts"] = L("1.1.1.2"), ["cmd"] = "bin/jobs", ["stop_timeout"] = 60 }
+      };
+
+      Assert.Equal(
+         "sh -c 'docker ps --latest --quiet --filter label=service=app --filter label=destination= --filter label=role=web --filter status=running --filter status=restarting --filter ancestor=$(docker image ls --filter reference=dhh/app:latest --format '\\''{{.ID}}'\\'') ; docker ps --latest --quiet --filter label=service=app --filter label=destination= --filter label=role=web --filter status=running --filter status=restarting' | head -1 | xargs docker stop -t 30",
+         Join(NewCommand().Stop()));
+
+      Assert.Equal(
+         "sh -c 'docker ps --latest --quiet --filter label=service=app --filter label=destination= --filter label=role=workers --filter status=running --filter status=restarting --filter ancestor=$(docker image ls --filter reference=dhh/app:latest --format '\\''{{.ID}}'\\'') ; docker ps --latest --quiet --filter label=service=app --filter label=destination= --filter label=role=workers --filter status=running --filter status=restarting' | head -1 | xargs docker stop -t 60",
          Join(NewCommand(role: "workers").Stop()));
    }
 
@@ -250,7 +285,7 @@ public class AppTests : IDisposable
    public void LogsWithContainerId()
    {
       Assert.Equal(
-         "echo C137 | xargs docker logs --timestamps 2>&1",
+         "sh -c 'echo C137' | xargs docker logs --timestamps 2>&1",
          Join(NewCommand().Logs(containerId: "C137")));
    }
 
@@ -322,7 +357,7 @@ public class AppTests : IDisposable
          NewCommand().FollowLogs(host: "app-1", grep: "Completed"));
 
       Assert.Equal(
-         "ssh -t root@app-1 -p 22 'echo ID321 | xargs docker logs --timestamps --follow 2>&1'",
+         "ssh -t root@app-1 -p 22 'sh -c '\\''echo ID321'\\'' | xargs docker logs --timestamps --follow 2>&1'",
          NewCommand().FollowLogs(host: "app-1", containerId: "ID321"));
 
       Assert.Equal(

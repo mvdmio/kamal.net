@@ -1,5 +1,3 @@
-using Kamal.Execution;
-
 namespace Kamal.Cli;
 
 /// <summary>Port of <c>Kamal::Cli::Lock</c>.</summary>
@@ -12,9 +10,7 @@ public sealed class LockCli : CliBase
    /// <summary>Port of <c>status</c>.</summary>
    public Task Status()
    {
-      return HandleMissingLock(() =>
-         On(KAMAL.PrimaryHost!, async backend =>
-            Console.WriteLine(await backend.CaptureWithDebug(KAMAL.Lock.Status()).ConfigureAwait(false))));
+      return HandleMissingLock(async () => Console.WriteLine(await CaptureLockStatus().ConfigureAwait(false)));
    }
 
    /// <summary>Port of <c>acquire -m MESSAGE</c>.</summary>
@@ -24,9 +20,7 @@ public sealed class LockCli : CliBase
 
       await RaiseIfLocked(async () =>
       {
-         await On(KAMAL.PrimaryHost!, backend =>
-            backend.Execute(KAMAL.Lock.Acquire(message, KAMAL.Config.Version), verbosity: Verbosity.Debug)).ConfigureAwait(false);
-
+         await ExecuteLockAcquire(message).ConfigureAwait(false);
          Say("Acquired the deploy lock");
       }).ConfigureAwait(false);
    }
@@ -36,9 +30,7 @@ public sealed class LockCli : CliBase
    {
       return HandleMissingLock(async () =>
       {
-         await On(KAMAL.PrimaryHost!, backend =>
-            backend.Execute(KAMAL.Lock.Release(), verbosity: Verbosity.Debug)).ConfigureAwait(false);
-
+         await ExecuteLockRelease().ConfigureAwait(false);
          Say("Released the deploy lock");
       });
    }
@@ -49,7 +41,7 @@ public sealed class LockCli : CliBase
       {
          await action().ConfigureAwait(false);
       }
-      catch (ExecuteError e) when (e.Message.Contains("No such file or directory"))
+      catch (LockMissingError)
       {
          Say("There is no deploy lock");
       }

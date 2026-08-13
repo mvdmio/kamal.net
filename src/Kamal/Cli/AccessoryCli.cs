@@ -205,48 +205,56 @@ public sealed class AccessoryCli : CliBase
    /// Remote argv is passed as separate shell-escaped tokens so multi-word arguments
    /// and flags after <c>--</c> (for example guest <c>-c</c>) keep their boundaries.
    /// </summary>
-   public async Task Exec(string name, string[] cmd, bool interactive = false, bool reuse = false)
+   public async Task Exec(string name, string[] cmd, bool interactive = false, bool reuse = false, bool raw = false)
    {
-      await PreConnectIfRequired().ConfigureAwait(false);
+      if (raw && interactive)
+         throw new ArgumentException("Raw is not compatible with interactive");
 
-      // Do not JoinCommands: space-joining re-splits multi-word args on the remote shell.
-      // Escape each token so JoinTokens/SSH keeps intended argv boundaries.
-      var command = cmd.Select(static arg => (object)KamalUtils.EscapeShellValue(arg)).ToArray();
-      var cmdLabel = string.Join(" ", cmd);
-      var quiet = Options.Quiet;
+      Options.Raw = raw;
 
-      await WithAccessory(name, async (accessory, hosts) =>
+      await WithRawOutput(raw, async () =>
       {
-         if (interactive && reuse)
+         await PreConnectIfRequired().ConfigureAwait(false);
+
+         // Do not JoinCommands: space-joining re-splits multi-word args on the remote shell.
+         // Escape each token so JoinTokens/SSH keeps intended argv boundaries.
+         var command = cmd.Select(static arg => (object)KamalUtils.EscapeShellValue(arg)).ToArray();
+         var cmdLabel = string.Join(" ", cmd);
+         var quiet = Options.Quiet;
+
+         await WithAccessory(name, async (accessory, hosts) =>
          {
-            Say("Launching interactive command via SSH from existing container...", Magenta);
-            ExecLocally(accessory.ExecuteInExistingContainerOverSsh(command));
-         }
-         else if (interactive)
-         {
-            Say("Launching interactive command via SSH from new container...", Magenta);
-            await On(accessory.Hosts.First(), backend => ExecuteRegistryLogin(backend)).ConfigureAwait(false);
-            ExecLocally(accessory.ExecuteInNewContainerOverSsh(command));
-         }
-         else if (reuse)
-         {
-            Say("Launching command from existing container...", Magenta);
-            await On(hosts, async backend =>
+            if (interactive && reuse)
             {
-               await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{cmdLabel}' on {name} accessory"), verbosity: Verbosity.Debug).ConfigureAwait(false);
-               PutsByHost(backend.Host, await backend.CaptureWithInfo(accessory.ExecuteInExistingContainer(command)).ConfigureAwait(false), quiet: quiet);
-            }).ConfigureAwait(false);
-         }
-         else
-         {
-            Say("Launching command from new container...", Magenta);
-            await On(hosts, async backend =>
+               Say("Launching interactive command via SSH from existing container...", Magenta);
+               ExecLocally(accessory.ExecuteInExistingContainerOverSsh(command));
+            }
+            else if (interactive)
             {
-               await ExecuteRegistryLogin(backend).ConfigureAwait(false);
-               await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{cmdLabel}' on {name} accessory"), verbosity: Verbosity.Debug).ConfigureAwait(false);
-               PutsByHost(backend.Host, await backend.CaptureWithInfo(accessory.ExecuteInNewContainer(command)).ConfigureAwait(false), quiet: quiet);
-            }).ConfigureAwait(false);
-         }
+               Say("Launching interactive command via SSH from new container...", Magenta);
+               await On(accessory.Hosts.First(), backend => ExecuteRegistryLogin(backend)).ConfigureAwait(false);
+               ExecLocally(accessory.ExecuteInNewContainerOverSsh(command));
+            }
+            else if (reuse)
+            {
+               Say("Launching command from existing container...", Magenta);
+               await On(hosts, async backend =>
+               {
+                  await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{cmdLabel}' on {name} accessory"), verbosity: Verbosity.Debug).ConfigureAwait(false);
+                  PutsByHost(backend.Host, await backend.CaptureWithInfo(accessory.ExecuteInExistingContainer(command), strip: !raw).ConfigureAwait(false), quiet: quiet, raw: raw);
+               }).ConfigureAwait(false);
+            }
+            else
+            {
+               Say("Launching command from new container...", Magenta);
+               await On(hosts, async backend =>
+               {
+                  await ExecuteRegistryLogin(backend).ConfigureAwait(false);
+                  await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{cmdLabel}' on {name} accessory"), verbosity: Verbosity.Debug).ConfigureAwait(false);
+                  PutsByHost(backend.Host, await backend.CaptureWithInfo(accessory.ExecuteInNewContainer(command), strip: !raw).ConfigureAwait(false), quiet: quiet, raw: raw);
+               }).ConfigureAwait(false);
+            }
+         }).ConfigureAwait(false);
       }).ConfigureAwait(false);
    }
 

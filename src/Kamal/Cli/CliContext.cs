@@ -23,6 +23,18 @@ public sealed class CliOptions
 
    /// <summary>Proceed without confirmation question (<c>-y</c>).</summary>
    public bool Confirmed { get; set; }
+
+   /// <summary>Wait for the deploy lock instead of failing immediately.</summary>
+   public bool LockWait { get; set; }
+
+   /// <summary>Maximum seconds to wait for the deploy lock when <see cref="LockWait"/> is set.</summary>
+   public int LockWaitTimeout { get; set; } = 900;
+
+   /// <summary>Seconds between deploy lock polls when <see cref="LockWait"/> is set.</summary>
+   public int LockWaitInterval { get; set; } = 15;
+
+   /// <summary>Output raw, unmodified stdout (<c>--raw</c> on exec).</summary>
+   public bool Raw { get; set; }
 }
 
 /// <summary>

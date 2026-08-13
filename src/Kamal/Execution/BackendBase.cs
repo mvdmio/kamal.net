@@ -33,17 +33,18 @@ public abstract class BackendBase : IBackend
       bool raiseOnNonZeroExit = true,
       string? input = null,
       IReadOnlyDictionary<string, string>? env = null,
+      bool strip = true,
       CancellationToken cancellationToken = default)
    {
       var result = await RunLogged(command, verbosity, raiseOnNonZeroExit, input, env, cancellationToken).ConfigureAwait(false);
 
-      // SSHKit's capture strips the output by default.
-      return result.Stdout.Trim();
+      // SSHKit's capture strips the output by default; --raw keeps the byte stream intact.
+      return strip ? result.Stdout.Trim() : result.Stdout;
    }
 
-   public Task<string> CaptureWithInfo(object?[] command, bool raiseOnNonZeroExit = true, CancellationToken cancellationToken = default)
+   public Task<string> CaptureWithInfo(object?[] command, bool raiseOnNonZeroExit = true, bool strip = true, CancellationToken cancellationToken = default)
    {
-      return Capture(command, Verbosity.Info, raiseOnNonZeroExit, cancellationToken: cancellationToken);
+      return Capture(command, Verbosity.Info, raiseOnNonZeroExit, strip: strip, cancellationToken: cancellationToken);
    }
 
    public Task<string> CaptureWithDebug(object?[] command, bool raiseOnNonZeroExit = true, CancellationToken cancellationToken = default)

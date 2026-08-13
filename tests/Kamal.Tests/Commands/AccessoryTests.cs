@@ -102,6 +102,16 @@ public class AccessoryTests : IDisposable
    }
 
    [Fact]
+   public void RunWithCustomRestartPolicy()
+   {
+      ((Cfg)((Cfg)((Cfg)_config["accessories"]!)["mysql"]!)["options"]!)["restart"] = "on-failure";
+
+      Assert.Equal(
+         "docker run --name app-mysql --detach --restart on-failure --network kamal --log-opt max-size=\"10m\" --publish 3306:3306 --env MYSQL_ROOT_HOST=\"%\" --env-file .kamal/apps/app/env/accessories/mysql.env --label service=\"app-mysql\" --cpus \"4\" --memory \"2GB\" private.registry/mysql:8.0",
+         Join(NewCommand("mysql").Run()));
+   }
+
+   [Fact]
    public void Start()
    {
       Assert.Equal("docker container start app-mysql", Join(NewCommand("mysql").Start()));
@@ -125,6 +135,19 @@ public class AccessoryTests : IDisposable
       Assert.Equal(
          "docker run --rm --network kamal --env MYSQL_ROOT_HOST=\"%\" --env-file .kamal/apps/app/env/accessories/mysql.env --cpus \"4\" --memory \"2GB\" private.registry/mysql:8.0 mysql -u root",
          Join(NewCommand("mysql").ExecuteInNewContainer(["mysql", "-u", "root"])));
+   }
+
+   [Fact]
+   public void ExecuteInNewContainerExcludesRestartPolicy()
+   {
+      ((Cfg)((Cfg)((Cfg)_config["accessories"]!)["mysql"]!)["options"]!)["restart"] = "on-failure";
+
+      var command = Join(NewCommand("mysql").ExecuteInNewContainer(["mysql", "-u", "root"]));
+
+      Assert.Equal(
+         "docker run --rm --network kamal --env MYSQL_ROOT_HOST=\"%\" --env-file .kamal/apps/app/env/accessories/mysql.env --cpus \"4\" --memory \"2GB\" private.registry/mysql:8.0 mysql -u root",
+         command);
+      Assert.DoesNotContain("--restart", command);
    }
 
    [Fact]

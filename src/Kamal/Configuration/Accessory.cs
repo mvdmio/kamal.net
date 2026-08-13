@@ -166,12 +166,35 @@ public sealed class Accessory
       }
    }
 
-   public List<object> OptionArgs =>
-      _accessoryConfig.Get("options") is IDictionary<string, object?> args ? KamalUtils.Optionize(args) : [];
+   public List<object> OptionArgs => KamalUtils.Optionize(DockerOptionsWithoutRestart);
+
+   public string RestartPolicy => RestartPolicyOption is { } policy ? RubyHelpers.RubyToS(policy) : "unless-stopped";
 
    public object? Cmd => _accessoryConfig.Get("cmd");
 
    public bool RunningProxy => RubyHelpers.IsPresent(_accessoryConfig.Get("proxy"));
+
+   private IDictionary<string, object?> DockerOptions =>
+      RubyHelpers.AsDict(_accessoryConfig.Get("options")) ?? new OrderedDictionary<string, object?>();
+
+   private object? RestartPolicyOption =>
+      DockerOptions.TryGetValue("restart", out var value) ? value : null;
+
+   private IDictionary<string, object?> DockerOptionsWithoutRestart
+   {
+      get
+      {
+         var options = new OrderedDictionary<string, object?>();
+
+         foreach (var (key, value) in DockerOptions)
+         {
+            if (key != "restart")
+               options[key] = value;
+         }
+
+         return options;
+      }
+   }
 
    private static IEnumerable<Volume> PathVolumes(OrderedDictionary<string, AccessoryPath> paths)
    {

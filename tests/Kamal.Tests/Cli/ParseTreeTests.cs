@@ -29,7 +29,7 @@ public sealed class ParseTreeTests
       "accessory stop db",
       "accessory restart db",
       "accessory details all",
-      "accessory exec db ls -i --reuse",
+      "accessory exec db ls -i --reuse --raw",
       "accessory exec db -- sh -c SELECT",
       "accessory logs db --since 1h --lines 10 --grep foo --follow --skip-timestamps",
       "accessory pull_image db",
@@ -44,6 +44,7 @@ public sealed class ParseTreeTests
       "app details",
       "app exec -i --reuse ls",
       "app exec --detach ls -e FOO=bar",
+      "app exec --raw ls",
       "app containers",
       "app stale_containers --stop",
       "app images",
@@ -93,7 +94,9 @@ public sealed class ParseTreeTests
       "secrets print",
       "server bootstrap",
       "server exec ls -i",
-      "app boot -v --version 1 -p -h 1.1.1.1 -r web -c foo.yml -d staging -H",
+      "server exec ls --raw",
+      "deploy --lock-wait --lock-wait-timeout 60 --lock-wait-interval 5",
+      "app boot -v --version 1 -p -h 1.1.1.1 -r web -c foo.yml -d staging -H --lock-wait",
       "app boot -q");
 
    [Theory]

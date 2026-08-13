@@ -28,7 +28,7 @@ public sealed partial class App
       return containerId switch
       {
          object[] command => command,
-         string id => $"echo {id}",
+         string id => Shell($"echo {id}"),
          _ => CurrentRunningContainerId()
       };
    }

@@ -13,32 +13,40 @@ public sealed class ServerCli : CliBase
    }
 
    /// <summary>Port of <c>exec CMD</c>.</summary>
-   public async Task Exec(string[] cmd, bool interactive = false)
+   public async Task Exec(string[] cmd, bool interactive = false, bool raw = false)
    {
-      await PreConnectIfRequired().ConfigureAwait(false);
+      if (raw && interactive)
+         throw new ArgumentException("Raw is not compatible with interactive");
 
-      var command = KamalUtils.JoinCommands(cmd);
-      var hosts = KAMAL.Hosts;
-      var quiet = Options.Quiet;
+      Options.Raw = raw;
 
-      if (interactive)
+      await WithRawOutput(raw, async () =>
       {
-         var host = KAMAL.PrimaryHost!;
+         await PreConnectIfRequired().ConfigureAwait(false);
 
-         Say($"Running '{command}' on {host} interactively...", Magenta);
+         var command = KamalUtils.JoinCommands(cmd);
+         var hosts = KAMAL.Hosts;
+         var quiet = Options.Quiet;
 
-         ExecLocally(KAMAL.Server.RunOverSsh(command, host: host));
-      }
-      else
-      {
-         Say($"Running '{command}' on {string.Join(", ", hosts)}...", Magenta);
-
-         await On(hosts, async backend =>
+         if (interactive)
          {
-            await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{command}' on {backend.Host}"), verbosity: Verbosity.Debug).ConfigureAwait(false);
-            PutsByHost(backend.Host, await backend.CaptureWithInfo([command]).ConfigureAwait(false), quiet: quiet);
-         }).ConfigureAwait(false);
-      }
+            var host = KAMAL.PrimaryHost!;
+
+            Say($"Running '{command}' on {host} interactively...", Magenta);
+
+            ExecLocally(KAMAL.Server.RunOverSsh(command, host: host));
+         }
+         else
+         {
+            Say($"Running '{command}' on {string.Join(", ", hosts)}...", Magenta);
+
+            await On(hosts, async backend =>
+            {
+               await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{command}' on {backend.Host}"), verbosity: Verbosity.Debug).ConfigureAwait(false);
+               PutsByHost(backend.Host, await backend.CaptureWithInfo([command], strip: !raw).ConfigureAwait(false), quiet: quiet, raw: raw);
+            }).ConfigureAwait(false);
+         }
+      }).ConfigureAwait(false);
    }
 
    /// <summary>Port of <c>bootstrap</c>.</summary>

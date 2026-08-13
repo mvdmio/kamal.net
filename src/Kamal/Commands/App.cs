@@ -26,7 +26,7 @@ public sealed partial class App : CommandsBase
    {
       return Docker("run",
          "--detach",
-         "--restart unless-stopped",
+         "--restart", Role!.RestartPolicy,
          "--name", ContainerName(),
          "--network", "kamal",
          hostname is null ? null : new object[] { "--hostname", hostname },

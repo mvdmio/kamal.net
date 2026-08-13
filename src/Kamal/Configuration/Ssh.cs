@@ -71,6 +71,12 @@ public sealed class Ssh
 
    public object? Config => _sshConfig.Get("config");
 
+   /// <summary>
+   /// Whether to forward the local SSH agent. Accepted for deploy.yml compatibility with
+   /// Ruby Kamal; SSH.NET sessions do not request agent forwarding (see README deviations).
+   /// </summary>
+   public object? ForwardAgent => _sshConfig.Get("forward_agent");
+
    public string LogLevel => RubyHelpers.RubyToS(_sshConfig.Fetch("log_level", "fatal"));
 
    /// <summary>
@@ -142,6 +148,7 @@ public sealed class Ssh
             ["keys"] = Keys,
             ["key_data"] = KeyData,
             ["config"] = Config,
+            ["forward_agent"] = ForwardAgent,
             ["passphrase"] = Passphrase,
             ["strict_host_key_checking"] = StrictHostKeyChecking ? true : null,
             ["known_hosts"] = KnownHosts

@@ -24,6 +24,12 @@ public sealed class LockError : Exception
    }
 }
 
+/// <summary>Port of <c>Kamal::Cli::Base::LockHeldError</c>: the remote lock directory already exists.</summary>
+public sealed class LockHeldError : Exception;
+
+/// <summary>Port of <c>Kamal::Cli::Base::LockMissingError</c>: no lock file on the primary host.</summary>
+public sealed class LockMissingError : Exception;
+
 /// <summary>Port of <c>Kamal::Cli::DependencyError</c>.</summary>
 public sealed class DependencyError : Exception
 {

@@ -97,6 +97,31 @@ public sealed class AppCliTests
    }
 
    [Fact]
+   public async Task ExecRawWritesStdoutVerbatim()
+   {
+      using var harness = new CliTestHarness(SingleHostDeploy);
+      harness.RespondTo("docker run", "payload");
+
+      var exitCode = await harness.Run("app", "exec", "--raw", "ruby", "-v");
+
+      Assert.Equal(0, exitCode);
+      Assert.Contains("payload", harness.Output);
+      Assert.DoesNotContain("App Host:", harness.Output);
+      Assert.DoesNotContain("Launching command", harness.Output);
+   }
+
+   [Fact]
+   public async Task ExecRawIsIncompatibleWithInteractive()
+   {
+      using var harness = new CliTestHarness(SingleHostDeploy);
+
+      var exitCode = await harness.Run("app", "exec", "--raw", "--interactive", "ls");
+
+      Assert.Equal(1, exitCode);
+      Assert.Contains("Raw is not compatible with interactive", harness.Output);
+   }
+
+   [Fact]
    public async Task ExecWithoutCommandFails()
    {
       using var harness = new CliTestHarness(SingleHostDeploy);

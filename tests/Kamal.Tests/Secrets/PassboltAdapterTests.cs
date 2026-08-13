@@ -11,7 +11,7 @@ public class PassboltAdapterTests
    {
       StubVerified();
       _shell.Stub(
-         "passbolt list resources --filter 'Name == \"SECRET1\" || Name == \"FSECRET1\" || Name == \"FSECRET2\"'  --json",
+         "passbolt list resources --filter 'Name == \"SECRET1\" || Name == \"FSECRET1\" || Name == \"FSECRET2\"'  --column name --column password --json",
          """
          [
            { "id": "4c116996", "folder_parent_id": "", "name": "FSECRET1", "password": "fsecret1" },
@@ -40,7 +40,7 @@ public class PassboltAdapterTests
          [ { "id": "dcbe0e39-42d8-42db-9637-8256b9f2f8e3", "folder_parent_id": "", "name": "my-project" } ]
          """);
       _shell.Stub(
-         "passbolt list resources --filter '(Name == \"SECRET1\" && FolderParentID == \"dcbe0e39-42d8-42db-9637-8256b9f2f8e3\") || (Name == \"FSECRET1\" && FolderParentID == \"dcbe0e39-42d8-42db-9637-8256b9f2f8e3\") || (Name == \"FSECRET2\" && FolderParentID == \"dcbe0e39-42d8-42db-9637-8256b9f2f8e3\")' --folder dcbe0e39-42d8-42db-9637-8256b9f2f8e3 --json",
+         "passbolt list resources --filter '(Name == \"SECRET1\" && FolderParentID == \"dcbe0e39-42d8-42db-9637-8256b9f2f8e3\") || (Name == \"FSECRET1\" && FolderParentID == \"dcbe0e39-42d8-42db-9637-8256b9f2f8e3\") || (Name == \"FSECRET2\" && FolderParentID == \"dcbe0e39-42d8-42db-9637-8256b9f2f8e3\")' --folder dcbe0e39-42d8-42db-9637-8256b9f2f8e3 --column name --column password --json",
          """
          [
            { "id": "4c116996", "folder_parent_id": "dcbe0e39-42d8-42db-9637-8256b9f2f8e3", "name": "FSECRET1", "password": "fsecret1" },
@@ -72,7 +72,7 @@ public class PassboltAdapterTests
          ]
          """);
       _shell.Stub(
-         "passbolt list resources --filter '(Name == \"SECRET1\" && FolderParentID == \"dcbe0e39-42d8-42db-9637-8256b9f2f8e3\") || (Name == \"FSECRET1\" && FolderParentID == \"dcbe0e39-42d8-42db-9637-8256b9f2f8e3\") || (Name == \"FSECRET2\" && FolderParentID == \"14e11dd8-b279-4689-8bd9-fa33ebb527da\")' --folder dcbe0e39-42d8-42db-9637-8256b9f2f8e3 --folder 14e11dd8-b279-4689-8bd9-fa33ebb527da --json",
+         "passbolt list resources --filter '(Name == \"SECRET1\" && FolderParentID == \"dcbe0e39-42d8-42db-9637-8256b9f2f8e3\") || (Name == \"FSECRET1\" && FolderParentID == \"dcbe0e39-42d8-42db-9637-8256b9f2f8e3\") || (Name == \"FSECRET2\" && FolderParentID == \"14e11dd8-b279-4689-8bd9-fa33ebb527da\")' --folder dcbe0e39-42d8-42db-9637-8256b9f2f8e3 --folder 14e11dd8-b279-4689-8bd9-fa33ebb527da --column name --column password --json",
          """
          [
            { "id": "4c116996", "folder_parent_id": "dcbe0e39-42d8-42db-9637-8256b9f2f8e3", "name": "FSECRET1", "password": "fsecret1" },
@@ -106,7 +106,7 @@ public class PassboltAdapterTests
          [ { "id": "6a3f21fc-aa40-4ba9-852c-7477fdd0310d", "folder_parent_id": "dcbe0e39-42d8-42db-9637-8256b9f2f8e3", "name": "subfolder" } ]
          """);
       _shell.Stub(
-         "passbolt list resources --filter '(Name == \"SECRET1\" && FolderParentID == \"6a3f21fc-aa40-4ba9-852c-7477fdd0310d\") || (Name == \"FSECRET1\" && FolderParentID == \"6a3f21fc-aa40-4ba9-852c-7477fdd0310d\") || (Name == \"FSECRET2\" && FolderParentID == \"6a3f21fc-aa40-4ba9-852c-7477fdd0310d\")' --folder dcbe0e39-42d8-42db-9637-8256b9f2f8e3 --folder 6a3f21fc-aa40-4ba9-852c-7477fdd0310d --json",
+         "passbolt list resources --filter '(Name == \"SECRET1\" && FolderParentID == \"6a3f21fc-aa40-4ba9-852c-7477fdd0310d\") || (Name == \"FSECRET1\" && FolderParentID == \"6a3f21fc-aa40-4ba9-852c-7477fdd0310d\") || (Name == \"FSECRET2\" && FolderParentID == \"6a3f21fc-aa40-4ba9-852c-7477fdd0310d\")' --folder dcbe0e39-42d8-42db-9637-8256b9f2f8e3 --folder 6a3f21fc-aa40-4ba9-852c-7477fdd0310d --column name --column password --json",
          """
          [
            { "id": "4c116996", "folder_parent_id": "6a3f21fc-aa40-4ba9-852c-7477fdd0310d", "name": "FSECRET1", "password": "fsecret1" },
@@ -130,7 +130,7 @@ public class PassboltAdapterTests
    {
       StubVerified();
       _shell.Stub(
-         "passbolt list resources --filter 'Name == \"SECRET1\" || Name == \"SECRET2\"'  --json",
+         "passbolt list resources --filter 'Name == \"SECRET1\" || Name == \"SECRET2\"'  --column name --column password --json",
          """
          [ { "id": "dd32963c", "folder_parent_id": "", "name": "SECRET1", "password": "secret1" } ]
          """);

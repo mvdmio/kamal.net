@@ -40,6 +40,12 @@ public sealed partial class Commander
 
    public bool Logging { get; set; }
 
+   public bool LockWait { get; set; }
+
+   public int LockWaitTimeout { get; set; }
+
+   public int LockWaitInterval { get; set; }
+
    public List<Role>? SpecificRoles => _specificRoles;
 
    public List<string>? SpecificHosts => _specificHosts;
@@ -51,6 +57,9 @@ public sealed partial class Commander
       HoldingLock = Environment.GetEnvironmentVariable("KAMAL_LOCK") == "true";
       Connected = false;
       Logging = false;
+      LockWait = false;
+      LockWaitTimeout = 900;
+      LockWaitInterval = 15;
       _modifyDepth = 0;
       _specifics = null;
       _specificRoles = null;

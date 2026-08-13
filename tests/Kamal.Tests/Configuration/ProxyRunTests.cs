@@ -67,4 +67,64 @@ public class ProxyRunTests
 
       Assert.Equal("Conflicting proxy run configurations for host 1.1.1.2", error.Message);
    }
+
+   [Fact]
+   public void RunObjectsWithIdenticalConfigAreEqual()
+   {
+      var deploy = BaseDeploy();
+      deploy["proxy"] = new Cfg { ["run"] = new Cfg { ["log_max_size"] = "50m" } };
+      var config = new KamalConfiguration(deploy);
+
+      var runA = new ProxyRun(config, new Cfg { ["log_max_size"] = "50m" });
+      var runB = new ProxyRun(config, new Cfg { ["log_max_size"] = "50m" });
+
+      Assert.Equal(runA, runB);
+      Assert.Equal(runA.GetHashCode(), runB.GetHashCode());
+      Assert.Single(new[] { runA, runB }.Distinct());
+   }
+
+   [Fact]
+   public void RunObjectsWithDifferentConfigAreNotEqual()
+   {
+      var deploy = BaseDeploy();
+      deploy["proxy"] = new Cfg { ["run"] = new Cfg { ["log_max_size"] = "50m" } };
+      var config = new KamalConfiguration(deploy);
+
+      var runA = new ProxyRun(config, new Cfg { ["log_max_size"] = "50m" });
+      var runB = new ProxyRun(config, new Cfg { ["log_max_size"] = "100m" });
+
+      Assert.NotEqual(runA, runB);
+      Assert.Equal(2, new[] { runA, runB }.Distinct().Count());
+   }
+
+   [Fact]
+   public void NoConflictWhenGlobalProxyRunConfigIsInheritedByRoleProxy()
+   {
+      var deploy = BaseDeploy();
+      deploy["servers"] = new Cfg
+      {
+         ["web"] = new Cfg { ["hosts"] = L("1.1.1.1") },
+         ["worker"] = new Cfg
+         {
+            ["hosts"] = L("1.1.1.1"),
+            ["cmd"] = "bin/jobs",
+            ["proxy"] = new Cfg
+            {
+               ["hosts"] = L("worker.example.com"),
+               ["app_port"] = 8080
+            }
+         }
+      };
+      deploy["proxy"] = new Cfg
+      {
+         ["hosts"] = L("example.com"),
+         ["run"] = new Cfg
+         {
+            ["log_max_size"] = "",
+            ["options"] = new Cfg { ["log-driver"] = "journald" }
+         }
+      };
+
+      Assert.NotNull(new KamalConfiguration(deploy));
+   }
 }

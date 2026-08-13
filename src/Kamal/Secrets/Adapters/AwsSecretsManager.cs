@@ -26,20 +26,24 @@ public class AwsSecretsManager : AdapterBase
          var secretName = secret!["Name"]!.GetValue<string>();
          var secretString = secret["SecretString"]!.GetValue<string>();
 
-         JsonObject? parsed = null;
+         JsonNode? parsed = null;
          try
          {
-            parsed = JsonNode.Parse(secretString) as JsonObject;
+            parsed = JsonNode.Parse(secretString);
          }
          catch (JsonException)
          {
             // Not JSON: fall through to the raw string below.
          }
 
-         if (parsed != null)
+         if (parsed is JsonObject obj)
          {
-            foreach (var (key, value) in parsed)
-               results[$"{secretName}/{key}"] = value is JsonValue jsonValue && jsonValue.TryGetValue<string>(out var s) ? s : value?.ToJsonString() ?? "";
+            foreach (var (key, value) in obj)
+               results[$"{secretName}/{key}"] = StringifySecretValue(value);
+         }
+         else if (parsed is not null)
+         {
+            results[secretName] = StringifySecretValue(parsed);
          }
          else
          {
@@ -48,6 +52,14 @@ public class AwsSecretsManager : AdapterBase
       }
 
       return results;
+   }
+
+   private static string StringifySecretValue(JsonNode? value)
+   {
+      if (value is JsonValue jsonValue && jsonValue.TryGetValue<string>(out var s))
+         return s;
+
+      return value?.ToJsonString() ?? "null";
    }
 
    protected override void CheckDependencies()

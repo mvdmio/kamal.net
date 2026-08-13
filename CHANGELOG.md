@@ -4,10 +4,44 @@ All notable changes to Kamal.NET are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Versions track the upstream [Kamal](https://github.com/basecamp/kamal) release
-this port is faithful to (`2.11.x` ports Kamal 2.11), with the patch component
+this port is faithful to (`2.12.x` ports Kamal 2.12), with the patch component
 reserved for changes to the port itself.
 
 ## [Unreleased]
+
+## [2.12.0] - 2026-08-13
+
+Faithful to [Kamal 2.12.0](https://github.com/basecamp/kamal/releases/tag/v2.12.0).
+
+### Added
+
+- **`stop_timeout`** — how long to wait for a container to stop after SIGTERM.
+  Defaults to `drain_timeout` for non-proxied roles and Docker's 10s for
+  proxied roles. Set globally or per role.
+- **Custom Docker restart policy** — `options.restart` may be `no`, `always`,
+  `unless-stopped`, `on-failure`, or `on-failure:N`. The policy is used as
+  `--restart` on `docker run` and is not passed through as a generic option.
+- **`--raw` on `app`/`accessory`/`server exec`** — write unmodified stdout
+  (for piping). Incompatible with `--interactive`.
+- **`--lock-wait`** — poll an automatic deploy lock instead of failing
+  immediately. `--lock-wait-timeout` (default 900s) and
+  `--lock-wait-interval` (default 15s) control the wait. A lock held
+  manually still fails immediately.
+- **`ssh.forward_agent`** — accepted for `deploy.yml` compatibility. SSH.NET
+  sessions do not request agent forwarding.
+
+### Fixed
+
+- **`--container-id` logs** — wrap `echo ID` in `sh -c` so `xargs docker logs`
+  produces output.
+- **Local registry + remote/hybrid builder** — start the local registry even
+  when local `docker login` is skipped.
+- **Passbolt** — request name and password columns when listing resources.
+- **AWS Secrets Manager** — stringify non-string JSON values; a bare JSON
+  primitive (number, bool, quoted string, null) becomes the secret value.
+- **`git gc --auto`** in clone-reset, to bound pack growth.
+- **Proxy run equality** — identical inherited `proxy.run` configs on one
+  host no longer conflict.
 
 ## [2.11.3] - 2026-08-11
 
@@ -132,7 +166,8 @@ dotnet tool install -g mvdmio.Kamal
   a note.
 - `-h` is `--hosts` (as upstream); use `--help` or `-?` for help.
 
-[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.11.3...HEAD
+[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.12.0...HEAD
+[2.12.0]: https://github.com/mvdmio/kamal.net/compare/v2.11.3...v2.12.0
 [2.11.3]: https://github.com/mvdmio/kamal.net/compare/v2.11.2...v2.11.3
 [2.11.2]: https://github.com/mvdmio/kamal.net/compare/v2.11.1...v2.11.2
 [2.11.1]: https://github.com/mvdmio/kamal.net/compare/v2.11.0...v2.11.1

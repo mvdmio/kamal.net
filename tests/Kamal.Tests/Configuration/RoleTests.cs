@@ -327,10 +327,74 @@ public class RoleTests
    }
 
    [Fact]
-   public void CannotSetRestartInOptions()
+   public void RestartPolicy()
    {
-      WorkersConfig["options"] = new Cfg { ["restart"] = "always" };
+      WorkersConfig["options"] = new Cfg { ["restart"] = "on-failure:3", ["memory"] = "2g" };
 
-      Assert.Throws<KamalConfigurationError>(() => ConfigWithRoles);
+      Assert.Equal("on-failure:3", ConfigWithRoles.Role("workers")!.RestartPolicy);
+      Assert.Equal(["--memory", "\"2g\""], S(ConfigWithRoles.Role("workers")!.OptionArgs));
+   }
+
+   [Fact]
+   public void DefaultRestartPolicy()
+   {
+      Assert.Equal("unless-stopped", ConfigWithRoles.Role("workers")!.RestartPolicy);
+   }
+
+   [Fact]
+   public void StopArgsWithProxyAndStopTimeout()
+   {
+      ((Cfg)_deployWithRoles["servers"]!)["web"] = new Cfg
+      {
+         ["hosts"] = L("1.1.1.1", "1.1.1.2"),
+         ["stop_timeout"] = 60
+      };
+
+      Assert.Equal(new object[] { "-t", 60 }, ConfigWithRoles.Role("web")!.StopArgs);
+   }
+
+   [Fact]
+   public void StopArgsWithNoProxyAndStopTimeout()
+   {
+      ((Cfg)_deployWithRoles["servers"]!)["workers"] = new Cfg
+      {
+         ["hosts"] = L("1.1.1.3", "1.1.1.4"),
+         ["cmd"] = "bin/jobs",
+         ["stop_timeout"] = 60
+      };
+
+      Assert.Equal(new object[] { "-t", 60 }, ConfigWithRoles.Role("workers")!.StopArgs);
+   }
+
+   [Fact]
+   public void StopArgsWithRootStopTimeout()
+   {
+      _deployWithRoles["stop_timeout"] = 45;
+
+      Assert.Equal(new object[] { "-t", 45 }, ConfigWithRoles.Role("web")!.StopArgs);
+      Assert.Equal(new object[] { "-t", 45 }, ConfigWithRoles.Role("workers")!.StopArgs);
+   }
+
+   [Fact]
+   public void StopArgsWithRoleStopTimeoutOverridingRoot()
+   {
+      _deployWithRoles["stop_timeout"] = 45;
+      ((Cfg)_deployWithRoles["servers"]!)["web"] = new Cfg
+      {
+         ["hosts"] = L("1.1.1.1", "1.1.1.2"),
+         ["stop_timeout"] = 60
+      };
+
+      Assert.Equal(new object[] { "-t", 60 }, ConfigWithRoles.Role("web")!.StopArgs);
+      Assert.Equal(new object[] { "-t", 45 }, ConfigWithRoles.Role("workers")!.StopArgs);
+   }
+
+   [Fact]
+   public void InvalidBooleanRestartPolicy()
+   {
+      WorkersConfig["options"] = new Cfg { ["restart"] = false };
+
+      var error = Assert.Throws<KamalConfigurationError>(() => ConfigWithRoles);
+      Assert.Equal("servers/workers/options/restart: should be a string. Use \"no\" to disable restarts", error.Message);
    }
 }

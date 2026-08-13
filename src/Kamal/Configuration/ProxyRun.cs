@@ -126,6 +126,16 @@ public sealed class ProxyRun
 
    public string AppContainerDirectory => RubyHelpers.JoinPath(AppsContainerDirectory, _config.ServiceAndDestination);
 
+   public override bool Equals(object? obj) =>
+      obj is ProxyRun other && RunConfigsEqual(RunConfig, other.RunConfig);
+
+   public override int GetHashCode() => RunConfigHash(RunConfig);
+
+   public static bool operator ==(ProxyRun? left, ProxyRun? right) =>
+      ReferenceEquals(left, right) || (left is not null && left.Equals(right));
+
+   public static bool operator !=(ProxyRun? left, ProxyRun? right) => !(left == right);
+
    /// <summary>Ensures an IPv6 address is wrapped in square brackets, e.g. [::1].</summary>
    internal static string? FormatBindIp(string? ip)
    {
@@ -136,5 +146,37 @@ public sealed class ProxyRun
          return $"[{ip}]";
 
       return ip;
+   }
+
+   private static bool RunConfigsEqual(IDictionary<string, object?> left, IDictionary<string, object?> right)
+   {
+      if (left.Count != right.Count)
+         return false;
+
+      foreach (var (key, value) in left)
+      {
+         if (!right.TryGetValue(key, out var other) || !ValuesEqual(value, other))
+            return false;
+      }
+
+      return true;
+   }
+
+   private static bool ValuesEqual(object? left, object? right)
+   {
+      if (left is IDictionary<string, object?> leftDict && right is IDictionary<string, object?> rightDict)
+         return RunConfigsEqual(leftDict, rightDict);
+
+      return Equals(left, right);
+   }
+
+   private static int RunConfigHash(IDictionary<string, object?> config)
+   {
+      var hash = 0;
+
+      foreach (var (key, value) in config)
+         hash ^= HashCode.Combine(key, value);
+
+      return hash;
    }
 }

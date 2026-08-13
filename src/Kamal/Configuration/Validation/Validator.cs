@@ -20,7 +20,7 @@ public enum ConfigType
 /// example structure from the embedded docs, raising <see cref="KamalConfigurationError"/>
 /// with the same messages as Ruby.
 /// </summary>
-public class Validator
+public partial class Validator
 {
    protected object? Config { get; }
    protected object? Example { get; }
@@ -354,7 +354,25 @@ public class Validator
 
    protected void ValidateDockerOptions(object? options)
    {
-      if (options is IDictionary<string, object?> optionsDict && optionsDict.Get("restart") is not (null or false))
-         Error("Cannot set restart policy in docker options, unless-stopped is required");
+      if (options is IDictionary<string, object?> optionsDict && optionsDict.TryGetValue("restart", out var restartPolicy))
+         ValidateRestartPolicy(restartPolicy);
    }
+
+   private void ValidateRestartPolicy(object? restartPolicy)
+   {
+      WithContext("options/restart", () =>
+      {
+         if (restartPolicy is not string policy)
+         {
+            Error("should be a string. Use \"no\" to disable restarts");
+            return;
+         }
+
+         if (!RestartPolicyRegex().IsMatch(policy))
+            Error("should be no, always, unless-stopped, on-failure, or on-failure:N");
+      });
+   }
+
+   [System.Text.RegularExpressions.GeneratedRegex(@"\A(?:no|always|unless-stopped|on-failure(?::\d+)?)\z")]
+   private static partial System.Text.RegularExpressions.Regex RestartPolicyRegex();
 }

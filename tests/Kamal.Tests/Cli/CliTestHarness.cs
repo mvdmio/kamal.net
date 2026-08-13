@@ -107,6 +107,7 @@ public sealed class CliTestHarness : IDisposable
       Git.Runner = _originalGit;
       CliBase.ExecHandler = null;
       CliBase.AskHandler = null;
+      CliBase.SleepHandler = seconds => Task.Delay(TimeSpan.FromSeconds(seconds));
       KamalRuntime.Reset();
 
       try

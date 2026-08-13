@@ -23,6 +23,9 @@ public static class KamalCli
    private static readonly Option<string> ConfigFileOption = new("--config-file", "-c") { Description = "Path to config file", Recursive = true, DefaultValueFactory = _ => "config/deploy.yml" };
    private static readonly Option<string?> DestinationOption = new("--destination", "-d") { Description = "Specify destination to be used for config file (staging -> deploy.staging.yml)", Recursive = true };
    private static readonly Option<bool> SkipHooksOption = new("--skip-hooks", "-H") { Description = "Don't run hooks", Recursive = true };
+   private static readonly Option<bool> LockWaitOption = new("--lock-wait") { Description = "Wait for the deploy lock if it's already held instead of failing immediately", Recursive = true };
+   private static readonly Option<int> LockWaitTimeoutOption = new("--lock-wait-timeout") { Description = "Maximum seconds to wait for the deploy lock when --lock-wait is set", Recursive = true, DefaultValueFactory = _ => 900 };
+   private static readonly Option<int> LockWaitIntervalOption = new("--lock-wait-interval") { Description = "Seconds between deploy lock polls when --lock-wait is set", Recursive = true, DefaultValueFactory = _ => 15 };
 
    /// <summary>Entry point used by Program.cs and the tests: parse (resolving aliases) and invoke.</summary>
    public static async Task<int> Start(string[] args)
@@ -154,7 +157,7 @@ public static class KamalCli
          }
       }
 
-      foreach (var option in new Option[] { VerboseOption, QuietOption, VersionOption, PrimaryOption, HostsOption, RolesOption, ConfigFileOption, DestinationOption, SkipHooksOption })
+      foreach (var option in new Option[] { VerboseOption, QuietOption, VersionOption, PrimaryOption, HostsOption, RolesOption, ConfigFileOption, DestinationOption, SkipHooksOption, LockWaitOption, LockWaitTimeoutOption, LockWaitIntervalOption })
          root.Add(option);
 
       AddMainCommands(root);
@@ -310,9 +313,10 @@ public static class KamalCli
       };
       var execInteractive = new Option<bool>("--interactive", "-i") { Description = "Execute command over ssh for an interactive shell (use for console/bash)" };
       var execReuse = new Option<bool>("--reuse") { Description = "Reuse currently running container instead of starting a new one" };
-      var exec = new Command("exec", "Execute a custom command on servers within the accessory container (use --help to show options)") { execName, execCmd, execInteractive, execReuse };
+      var execRaw = new Option<bool>("--raw") { Description = "Output raw, unmodified stdout" };
+      var exec = new Command("exec", "Execute a custom command on servers within the accessory container (use --help to show options)") { execName, execCmd, execInteractive, execReuse, execRaw };
       SetAction(exec, "accessory", "exec", (parse, context) =>
-         new AccessoryCli(context).Exec(parse.GetRequiredValue(execName), parse.GetValue(execCmd) ?? [], interactive: parse.GetValue(execInteractive), reuse: parse.GetValue(execReuse)));
+         new AccessoryCli(context).Exec(parse.GetRequiredValue(execName), parse.GetValue(execCmd) ?? [], interactive: parse.GetValue(execInteractive), reuse: parse.GetValue(execReuse), raw: parse.GetValue(execRaw)));
       accessory.Add(exec);
 
       var logsName = NameArg();
@@ -404,9 +408,10 @@ public static class KamalCli
       var execReuse = new Option<bool>("--reuse") { Description = "Reuse currently running container instead of starting a new one" };
       var execEnv = new Option<string[]>("--env", "-e") { Description = "Set environment variables for the command (NAME=value pairs)", AllowMultipleArgumentsPerToken = true };
       var execDetach = new Option<bool>("--detach") { Description = "Execute command in a detached container" };
-      var exec = new Command("exec", "Execute a custom command on servers within the app container (use --help to show options)") { execCmd, execInteractive, execReuse, execEnv, execDetach };
+      var execRaw = new Option<bool>("--raw") { Description = "Output raw, unmodified stdout" };
+      var exec = new Command("exec", "Execute a custom command on servers within the app container (use --help to show options)") { execCmd, execInteractive, execReuse, execEnv, execDetach, execRaw };
       SetAction(exec, "app", "exec", (parse, context) =>
-         new AppCli(context).Exec(parse.GetValue(execCmd) ?? [], interactive: parse.GetValue(execInteractive), reuse: parse.GetValue(execReuse), env: parse.GetValue(execEnv), detach: parse.GetValue(execDetach)));
+         new AppCli(context).Exec(parse.GetValue(execCmd) ?? [], interactive: parse.GetValue(execInteractive), reuse: parse.GetValue(execReuse), env: parse.GetValue(execEnv), detach: parse.GetValue(execDetach), raw: parse.GetValue(execRaw)));
       app.Add(exec);
 
       var containers = new Command("containers", "Show app containers on servers");
@@ -766,8 +771,9 @@ public static class KamalCli
 
       var execCmd = new Argument<string[]>("cmd") { Arity = ArgumentArity.ZeroOrMore, Description = "Command to run" };
       var execInteractive = new Option<bool>("--interactive", "-i") { Description = "Run the command interactively (use for console/bash)" };
-      var exec = new Command("exec", "Run a custom command on the server (use --help to show options)") { execCmd, execInteractive };
-      SetAction(exec, "server", "exec", (parse, context) => new ServerCli(context).Exec(parse.GetValue(execCmd) ?? [], interactive: parse.GetValue(execInteractive)));
+      var execRaw = new Option<bool>("--raw") { Description = "Output raw, unmodified stdout" };
+      var exec = new Command("exec", "Run a custom command on the server (use --help to show options)") { execCmd, execInteractive, execRaw };
+      SetAction(exec, "server", "exec", (parse, context) => new ServerCli(context).Exec(parse.GetValue(execCmd) ?? [], interactive: parse.GetValue(execInteractive), raw: parse.GetValue(execRaw)));
       server.Add(exec);
 
       return server;
@@ -813,7 +819,10 @@ public static class KamalCli
          Roles = parseResult.GetValue(RolesOption),
          ConfigFile = parseResult.GetValue(ConfigFileOption) ?? "config/deploy.yml",
          Destination = parseResult.GetValue(DestinationOption),
-         SkipHooks = parseResult.GetValue(SkipHooksOption)
+         SkipHooks = parseResult.GetValue(SkipHooksOption),
+         LockWait = parseResult.GetValue(LockWaitOption),
+         LockWaitTimeout = parseResult.GetValue(LockWaitTimeoutOption),
+         LockWaitInterval = parseResult.GetValue(LockWaitIntervalOption)
       };
    }
 
@@ -845,6 +854,10 @@ public static class KamalCli
 
       commander.SetSpecificHosts(options.Hosts?.Split(','));
       commander.SetSpecificRoles(options.Roles?.Split(','));
+
+      commander.LockWait = options.LockWait;
+      commander.LockWaitTimeout = options.LockWaitTimeout;
+      commander.LockWaitInterval = options.LockWaitInterval;
 
       if (options.Primary)
          commander.SpecificPrimary();

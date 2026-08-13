@@ -36,7 +36,10 @@ public sealed partial class BuildCli : CliBase
 
       await EnsureDockerInstalled().ConfigureAwait(false);
 
-      if (KAMAL.Builder.LoginToRegistryLocally)
+      if (KAMAL.Registry.Local)
+         await SetupLocalRegistry().ConfigureAwait(false);
+
+      if (!KAMAL.Registry.Local && KAMAL.Builder.LoginToRegistryLocally)
          await LoginToRegistryLocally().ConfigureAwait(false);
 
       await RunHook("pre-build").ConfigureAwait(false);
@@ -266,13 +269,16 @@ public sealed partial class BuildCli : CliBase
       });
    }
 
+   private static Task SetupLocalRegistry()
+   {
+      return RunLocally(backend => backend.Execute(KAMAL.Registry.Setup()));
+   }
+
    private static Task LoginToRegistryLocally()
    {
       return RunLocally(async backend =>
       {
-         if (KAMAL.Registry.Local)
-            await backend.Execute(KAMAL.Registry.Setup()).ConfigureAwait(false);
-         else if (KAMAL.Registry.Login() is { } login)
+         if (KAMAL.Registry.Login() is { } login)
             await backend.Execute(login).ConfigureAwait(false);
       });
    }

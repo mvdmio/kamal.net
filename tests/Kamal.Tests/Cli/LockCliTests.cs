@@ -62,6 +62,18 @@ public sealed class LockCliTests
    }
 
    [Fact]
+   public async Task StatusWithoutLockSaysSo()
+   {
+      using var harness = new CliTestHarness();
+      harness.RespondTo("base64 -d", "", exitCode: 1, stderr: "cat: .kamal/lock-app/details: No such file or directory\n");
+
+      var exitCode = await harness.Run("lock", "status");
+
+      Assert.Equal(0, exitCode);
+      Assert.Contains("There is no deploy lock", harness.Output);
+   }
+
+   [Fact]
    public async Task StatusShowsLockDetails()
    {
       using var harness = new CliTestHarness();

@@ -378,10 +378,27 @@ public class AccessoryTests
    }
 
    [Fact]
-   public void CannotSetRestartInOptions()
+   public void RestartPolicy()
    {
-      MysqlConfig["options"] = new Cfg { ["restart"] = "always" };
+      ((Cfg)RedisConfig["options"]!)["restart"] = "always";
 
-      Assert.Throws<KamalConfigurationError>(() => Config);
+      var config = Config;
+      Assert.Equal("always", config.Accessory("redis")!.RestartPolicy);
+      Assert.Equal(["--cpus", "\"4\"", "--memory", "\"2GB\""], S(config.Accessory("redis")!.OptionArgs));
+   }
+
+   [Fact]
+   public void DefaultRestartPolicy()
+   {
+      Assert.Equal("unless-stopped", Config.Accessory("redis")!.RestartPolicy);
+   }
+
+   [Fact]
+   public void InvalidBooleanRestartPolicy()
+   {
+      MysqlConfig["options"] = new Cfg { ["restart"] = false };
+
+      var error = Assert.Throws<KamalConfigurationError>(() => Config);
+      Assert.Equal("accessories/mysql/options/restart: should be a string. Use \"no\" to disable restarts", error.Message);
    }
 }

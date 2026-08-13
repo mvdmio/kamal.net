@@ -85,8 +85,9 @@ public sealed class Role
 
    public object? Cmd => Specializations.Get("cmd");
 
-   public List<object> OptionArgs =>
-      Specializations.Get("options") is IDictionary<string, object?> args ? KamalUtils.Optionize(args) : [];
+   public List<object> OptionArgs => KamalUtils.Optionize(DockerOptionsWithoutRestart);
+
+   public string RestartPolicy => RestartPolicyOption is { } policy ? RubyHelpers.RubyToS(policy) : "unless-stopped";
 
    public OrderedDictionary<string, object?> Labels
    {
@@ -112,12 +113,14 @@ public sealed class Role
 
    public bool Ssl => RunningProxy && Proxy!.Ssl;
 
+   public object? StopTimeout => Specializations.Get("stop_timeout") ?? _config.StopTimeout;
+
    public List<object> StopArgs
    {
       get
       {
          // When deploying with the proxy, kamal-proxy will drain requests before returning so we don't need to wait.
-         object? timeout = RunningProxy ? null : _config.DrainTimeout;
+         object? timeout = StopTimeout ?? (RunningProxy ? null : (object)_config.DrainTimeout);
 
          return KamalUtils.Argumentize("-t", timeout is null ? null : new List<object?> { timeout });
       }
@@ -246,6 +249,28 @@ public sealed class Role
       ["role"] = Name,
       ["destination"] = _config.Destination
    };
+
+   private IDictionary<string, object?> DockerOptions =>
+      RubyHelpers.AsDict(Specializations.Get("options")) ?? new OrderedDictionary<string, object?>();
+
+   private object? RestartPolicyOption =>
+      DockerOptions.TryGetValue("restart", out var value) ? value : null;
+
+   private IDictionary<string, object?> DockerOptionsWithoutRestart
+   {
+      get
+      {
+         var options = new OrderedDictionary<string, object?>();
+
+         foreach (var (key, value) in DockerOptions)
+         {
+            if (key != "restart")
+               options[key] = value;
+         }
+
+         return options;
+      }
+   }
 
    private IDictionary<string, object?> Specializations =>
       _specializations ??= RubyHelpers.AsDict(RoleConfigRaw) ?? new OrderedDictionary<string, object?>();

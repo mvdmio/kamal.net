@@ -1,6 +1,6 @@
 # Kamal.NET
 
-A .NET port of [Kamal](https://github.com/basecamp/kamal) (v2.11) — deploy web apps anywhere, from bare metal to cloud VMs, with zero-downtime deploys, powered by Docker and kamal-proxy. Same `config/deploy.yml`, same commands, same workflow. **No Ruby required** — installs as a regular dotnet tool.
+A .NET port of [Kamal](https://github.com/basecamp/kamal) (v2.12) — deploy web apps anywhere, from bare metal to cloud VMs, with zero-downtime deploys, powered by Docker and kamal-proxy. Same `config/deploy.yml`, same commands, same workflow. **No Ruby required** — installs as a regular dotnet tool.
 
 ```bash
 dotnet tool install -g mvdmio.Kamal
@@ -18,7 +18,7 @@ Kamal is a fantastic deployment tool, but it ships as a Ruby gem. If your whole 
 
 ## What's included
 
-The complete Kamal 2.11 command surface:
+The complete Kamal 2.12 command surface:
 
 | Command group | Commands |
 |---|---|
@@ -68,6 +68,7 @@ Composite Actions in this repo (pin at a release tag matching the tool version):
 - **No full ERB in `deploy.yml`** — config is plain YAML. Use **config expansion** (`${ENV_VAR}` / `${ENV_VAR:-default}` in string values after load) for env-driven values; see `kamal docs ci` and ADR 0002. Secrets stay as secret name-references.
 - **SSH auth** — private keys only (no password). Sources in priority order: `ssh.keys` / `ssh.key_data`, then `KAMAL_SSH_PRIVATE_KEY`, then ssh-agent, then default `~/.ssh/id_*`. See `kamal docs ssh` and `kamal docs ci`.
 - **`ssh.proxy`** supports a single jump host (`user@bastion`); `proxy_command` and chained jump hosts are not supported.
+- **`ssh.forward_agent`** is accepted for `deploy.yml` compatibility but SSH.NET sessions do not request agent forwarding.
 - **OpenTelemetry audit log shipping** is not ported (file-based audit logging works).
 - `kamal init --bundle` (Gemfile binstubs) is not applicable to .NET and prints a note.
 - `-h` is `--hosts` (as upstream); use `--help`/`-?` for help.
@@ -86,7 +87,7 @@ Requires the .NET 10 SDK. The tool rolls forward, so it runs on any newer runtim
 
 ## Releasing
 
-Releases are cut by pushing a tag. Version numbers track the upstream Kamal release this port is faithful to (`2.11.x` ports Kamal 2.11); the patch component is for changes to the port itself.
+Releases are cut by pushing a tag. Version numbers track the upstream Kamal release this port is faithful to (`2.12.x` ports Kamal 2.12); the patch component is for changes to the port itself.
 
 1. Bump `<Version>` in `src/Kamal/Kamal.csproj`.
 2. Add the matching `## [x.y.z]` section to [CHANGELOG.md](CHANGELOG.md).

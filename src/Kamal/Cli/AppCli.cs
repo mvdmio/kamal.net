@@ -122,8 +122,15 @@ public sealed class AppCli : CliBase
    }
 
    /// <summary>Port of <c>exec [CMD...]</c>.</summary>
-   public async Task Exec(string[] cmd, bool interactive = false, bool reuse = false, string[]? env = null, bool detach = false)
+   public async Task Exec(string[] cmd, bool interactive = false, bool reuse = false, string[]? env = null, bool detach = false, bool raw = false)
    {
+      if (raw && interactive)
+         throw new ArgumentException("Raw is not compatible with interactive");
+
+      Options.Raw = raw;
+
+      await WithRawOutput(raw, async () =>
+      {
       await PreConnectIfRequired().ConfigureAwait(false);
 
       if (detach && (interactive || reuse))
@@ -179,7 +186,7 @@ public sealed class AppCli : CliBase
             return OnRoles(KAMAL.Roles, KAMAL.AppHosts, async (backend, role) =>
             {
                await backend.Execute(KAMAL.Auditor(new KeyValuePair<string, object?>("role", role.Name)).Record($"Executed cmd '{command[0]}' on app version {version}"), verbosity: Verbosity.Debug).ConfigureAwait(false);
-               PutsByHost(backend.Host, await backend.CaptureWithInfo(KAMAL.App(role: role, host: backend.Host).ExecuteInExistingContainer(command, envArgs)).ConfigureAwait(false), quiet: quiet);
+               PutsByHost(backend.Host, await backend.CaptureWithInfo(KAMAL.App(role: role, host: backend.Host).ExecuteInExistingContainer(command, envArgs), strip: !raw).ConfigureAwait(false), quiet: quiet, raw: raw);
             });
          }).ConfigureAwait(false);
       }
@@ -196,10 +203,11 @@ public sealed class AppCli : CliBase
             await OnRoles(KAMAL.Roles, KAMAL.AppHosts, async (backend, role) =>
             {
                await backend.Execute(KAMAL.Auditor().Record($"Executed cmd '{command[0]}' on app version {version}"), verbosity: Verbosity.Debug).ConfigureAwait(false);
-               PutsByHost(backend.Host, await backend.CaptureWithInfo(KAMAL.App(role: role, host: backend.Host).ExecuteInNewContainer(command, envArgs, detach: detach)).ConfigureAwait(false), quiet: quiet);
+               PutsByHost(backend.Host, await backend.CaptureWithInfo(KAMAL.App(role: role, host: backend.Host).ExecuteInNewContainer(command, envArgs, detach: detach), strip: !raw).ConfigureAwait(false), quiet: quiet, raw: raw);
             }).ConfigureAwait(false);
          }).ConfigureAwait(false);
       }
+      }).ConfigureAwait(false);
    }
 
    /// <summary>Port of <c>containers</c>.</summary>

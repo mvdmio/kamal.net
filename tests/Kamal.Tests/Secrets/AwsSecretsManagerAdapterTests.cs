@@ -104,6 +104,67 @@ public class AwsSecretsManagerAdapterTests
    }
 
    [Fact]
+   public void FetchWithBareJsonPrimitiveSecretStringValues()
+   {
+      _shell.Stub("aws --version 2> /dev/null");
+      _shell.Stub(
+         "aws secretsmanager batch-get-secret-value --secret-id-list port flag name nothing --profile default --output json",
+         """
+         {
+           "SecretValues": [
+             { "Name": "port", "SecretString": "5432" },
+             { "Name": "flag", "SecretString": "true" },
+             { "Name": "name", "SecretString": "\"quoted-string\"" },
+             { "Name": "nothing", "SecretString": "null" }
+           ],
+           "Errors": []
+         }
+         """);
+
+      var results = RunFetch(new[] { "port", "flag", "name", "nothing" });
+
+      Assert.Equal(new Dictionary<string, string>
+      {
+         ["port"] = "5432",
+         ["flag"] = "true",
+         ["name"] = "quoted-string",
+         ["nothing"] = "null"
+      }, results);
+   }
+
+   [Fact]
+   public void FetchCoercesNonStringJsonFieldValuesToStrings()
+   {
+      _shell.Stub("aws --version 2> /dev/null");
+      _shell.Stub(
+         "aws secretsmanager batch-get-secret-value --secret-id-list myapp/RailsUser --profile default --output json",
+         """
+         {
+           "SecretValues": [
+             {
+               "Name": "myapp/RailsUser",
+               "SecretString": "{\"host\":\"db.example\",\"port\":5432,\"ssl\":true,\"weight\":1.5,\"missing\":null,\"replicas\":{\"read\":\"r.example\",\"port\":5433},\"tags\":[\"prod\",\"db\"]}"
+             }
+           ],
+           "Errors": []
+         }
+         """);
+
+      var results = RunFetch(new[] { "myapp/RailsUser" });
+
+      Assert.Equal(new Dictionary<string, string>
+      {
+         ["myapp/RailsUser/host"] = "db.example",
+         ["myapp/RailsUser/port"] = "5432",
+         ["myapp/RailsUser/ssl"] = "true",
+         ["myapp/RailsUser/weight"] = "1.5",
+         ["myapp/RailsUser/missing"] = "null",
+         ["myapp/RailsUser/replicas"] = "{\"read\":\"r.example\",\"port\":5433}",
+         ["myapp/RailsUser/tags"] = "[\"prod\",\"db\"]"
+      }, results);
+   }
+
+   [Fact]
    public void FetchWithoutCliInstalled()
    {
       _shell.Stub("aws --version 2> /dev/null", success: false);
