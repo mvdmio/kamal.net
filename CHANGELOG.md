@@ -5,7 +5,8 @@ All notable changes to Kamal.NET are documented here. The format follows
 
 Versions track the upstream [Kamal](https://github.com/basecamp/kamal) release
 this port is faithful to (`2.12.x` ports Kamal 2.12), with the patch component
-reserved for changes to the port itself.
+reserved for changes to the port itself. Full policy:
+[`.claude/skills/release/SKILL.md`](.claude/skills/release/SKILL.md).
 
 ## [Unreleased]
 
