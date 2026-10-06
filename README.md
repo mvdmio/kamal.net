@@ -85,20 +85,9 @@ dotnet tool install -g mvdmio.Kamal --add-source ./artifacts
 
 Requires the .NET 10 SDK. The tool rolls forward, so it runs on any newer runtime.
 
-## Releasing
+## Versioning
 
-Releases are cut by pushing a tag. Version numbers track the upstream Kamal release this port is faithful to (`2.12.x` ports Kamal 2.12); the patch component is for changes to the port itself.
-
-1. Bump `<Version>` in `src/Kamal/Kamal.csproj`.
-2. Add the matching `## [x.y.z]` section to [CHANGELOG.md](CHANGELOG.md).
-3. Commit, then tag and push:
-
-```bash
-git tag v2.11.1
-git push origin v2.11.1
-```
-
-The [release workflow](.github/workflows/release.yml) verifies the tag matches the csproj version, runs the test suite, pushes `mvdmio.Kamal` to NuGet, and opens a GitHub release whose notes are the changelog section for that version, with the `.nupkg`/`.snupkg` attached. A tag with a prerelease suffix (`v2.12.0-rc.1`) is marked as a prerelease.
+Version numbers track the upstream Kamal release this port is faithful to (`2.12.x` ports Kamal 2.12); the patch component is for changes to the port itself. Full policy and release steps: [`.claude/skills/release/SKILL.md`](.claude/skills/release/SKILL.md).
 
 ## License
 
