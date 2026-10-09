@@ -41,8 +41,9 @@ public sealed class AccessoryCliTests
             host: web.example.com
       """;
 
-   private const string RunningLookup = "docker container ls --filter 'name=^app-web$' --quiet";
-   private const string ProxyRemove = "docker exec kamal-proxy kamal-proxy remove app-web";
+   private const string RunningContainerLookup = "docker container ls --filter 'name=^app-web$' --quiet";
+   private const string ContainerStop = "docker container stop app-web";
+   private const string ProxyRouteRemove = "docker exec kamal-proxy kamal-proxy remove app-web";
 
    [Fact]
    public async Task BootStartsTheAccessory()
@@ -98,26 +99,11 @@ public sealed class AccessoryCliTests
       Assert.Contains(commands, command => command.Contains("rm -rf app-mysql"));
    }
 
-   // The fake does not track container state, so the lookup must be shown to run before the stop,
-   // and the route removal after it.
-   private static void AssertRouteRemovedAfterLookupAndStop(List<string> commands)
-   {
-      var lookup = commands.FindIndex(command => command.Contains(RunningLookup));
-      var stop = commands.FindIndex(command => command.Contains("docker container stop app-web"));
-      var remove = commands.FindIndex(command => command.Contains(ProxyRemove));
-
-      Assert.True(lookup >= 0, "running-container lookup did not run");
-      Assert.True(stop >= 0, "container stop did not run");
-      Assert.True(remove >= 0, "kamal-proxy remove did not run");
-      Assert.True(lookup < stop, "running-container lookup ran after the container stop");
-      Assert.True(stop < remove, "kamal-proxy remove ran before the container stop");
-   }
-
    [Fact]
    public async Task StopRemovesProxyRouteWhenContainerWasRunning()
    {
       using var harness = new CliTestHarness(DeployWithProxiedAccessory);
-      harness.RespondTo(RunningLookup, "abc123\n");
+      harness.RespondTo(RunningContainerLookup, "abc123\n");
 
       var exitCode = await harness.Run("accessory", "stop", "web");
 
@@ -131,7 +117,7 @@ public sealed class AccessoryCliTests
    public async Task RemoveRemovesProxyRouteWhenContainerWasRunning()
    {
       using var harness = new CliTestHarness(DeployWithProxiedAccessory);
-      harness.RespondTo(RunningLookup, "abc123\n");
+      harness.RespondTo(RunningContainerLookup, "abc123\n");
 
       var exitCode = await harness.Run("accessory", "remove", "web", "-y");
 
@@ -154,7 +140,7 @@ public sealed class AccessoryCliTests
       Assert.Equal(0, exitCode);
 
       var commands = harness.CommandsOn("1.1.1.3");
-      Assert.Contains(commands, command => command.Contains(RunningLookup));
+      Assert.Contains(commands, command => command.Contains(RunningContainerLookup));
       Assert.DoesNotContain(commands, command => command.Contains("kamal-proxy remove"));
    }
 
@@ -210,5 +196,20 @@ public sealed class AccessoryCliTests
 
       var remote = Assert.Single(harness.CommandsOn("1.1.1.3"), command => command.Contains("docker run") && command.Contains("mysql:8.0"));
       Assert.Contains("\"sh\" \"-c\" \"echo hello world\"", remote);
+   }
+
+   // The fake does not track container state, so the lookup must be shown to run before the stop,
+   // and the route removal after it.
+   private static void AssertRouteRemovedAfterLookupAndStop(List<string> commands)
+   {
+      var lookup = commands.FindIndex(command => command.Contains(RunningContainerLookup));
+      var stop = commands.FindIndex(command => command.Contains(ContainerStop));
+      var remove = commands.FindIndex(command => command.Contains(ProxyRouteRemove));
+
+      Assert.True(lookup >= 0, "running-container lookup did not run");
+      Assert.True(stop >= 0, "container stop did not run");
+      Assert.True(remove >= 0, "kamal-proxy remove did not run");
+      Assert.True(lookup < stop, "running-container lookup ran after the container stop");
+      Assert.True(stop < remove, "kamal-proxy remove ran before the container stop");
    }
 }
