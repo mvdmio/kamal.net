@@ -7,3 +7,4 @@ artifacts/
 *.nupkg
 TestResults/
 .kamal/
+.claude/worktrees/
