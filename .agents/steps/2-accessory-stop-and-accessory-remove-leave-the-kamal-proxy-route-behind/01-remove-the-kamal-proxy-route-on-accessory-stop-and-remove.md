@@ -1,6 +1,6 @@
 # 01 — Remove the kamal-proxy route on accessory stop and remove
 
-Status: built
+Status: done
 Depends on: none
 
 ## What to build
@@ -49,10 +49,11 @@ Projects: `src/Kamal/Kamal.csproj`, `tests/Kamal.Tests/Kamal.Tests.csproj`
 
 ## Outcome
 
-Safety fact: for a proxied accessory, `accessory stop` and `accessory remove -y` look up the running container before `docker container stop`, then run `docker exec kamal-proxy kamal-proxy remove app-<name>`, and skip that removal when the lookup is empty; if false, kamal-proxy keeps routing to a stopped or removed container, or the command aborts on "service not found" (rung 3)
-Proof: `dotnet test --filter FullyQualifiedName~ProxyRoute` exit 0 — Passed!  - Failed: 0, Passed: 3, Skipped: 0, Total: 3 (accessory-proxy-route-tests.txt in the Proof folder); the two removal tests fail against the old `Stop`
+Safety fact: for a proxied accessory, `accessory stop` and `accessory remove -y` look up the running container before `docker container stop`, run `docker exec kamal-proxy kamal-proxy remove app-<name>` after the stop when that lookup found a container, and skip the removal when it found none; if false, kamal-proxy keeps routing to a stopped or removed container, or the command aborts on "service not found" (rung 3)
+Proof: `dotnet test --filter FullyQualifiedName~ProxyRoute` exit 0 — Passed!  - Failed: 0, Passed: 3, Skipped: 0, Total: 3 (accessory-proxy-route-tests-checker.txt in the Proof folder); with the old `Stop` restored, the two removal tests fail
 Merge risk: easy — reverting the commit restores the old stop order; affects operators running `kamal accessory stop`/`remove`/`restart`/`reboot` on proxied accessories
 
 - `CHANGELOG.md` left untouched: the run's prompt reserves it for a later step, so the `### Fixed` entry naming #2 is still to be written.
 - Rung 4 out of reach: driving the CLI needs a live host with Docker and kamal-proxy; the harness tests stand.
 - Whole suite: `dotnet test` passed, 911 tests.
+- Checker: the running-container lookup is now one helper, `AccessoryCli.RunningContainerId`, shared by `Boot`, `Start` and `Stop`. The removal tests now also check that `kamal-proxy remove` runs after the stop, and the not-running test checks that the lookup ran.

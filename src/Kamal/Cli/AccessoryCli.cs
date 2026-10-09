@@ -60,7 +60,7 @@ public sealed class AccessoryCli : CliBase
 
                   if (accessory.RunningProxy)
                   {
-                     var target = (await backend.CaptureWithInfo(accessory.ContainerIdFor(containerName: accessory.ServiceName, onlyRunning: true)).ConfigureAwait(false)).Trim();
+                     var target = await RunningContainerId(backend, accessory).ConfigureAwait(false);
                      await backend.Execute(accessory.Deploy(target: target)).ConfigureAwait(false);
                   }
                }).ConfigureAwait(false);
@@ -144,7 +144,7 @@ public sealed class AccessoryCli : CliBase
 
                if (accessory.RunningProxy)
                {
-                  var target = (await backend.CaptureWithInfo(accessory.ContainerIdFor(containerName: accessory.ServiceName, onlyRunning: true)).ConfigureAwait(false)).Trim();
+                  var target = await RunningContainerId(backend, accessory).ConfigureAwait(false);
                   await backend.Execute(accessory.Deploy(target: target)).ConfigureAwait(false);
                }
             })), requireLock: true);
@@ -163,7 +163,7 @@ public sealed class AccessoryCli : CliBase
                // route only when it was running. Upstream always runs kamal-proxy remove, which aborts with
                // "service not found" when no route exists (basecamp/kamal#1533).
                var target = accessory.RunningProxy
-                  ? (await backend.CaptureWithInfo(accessory.ContainerIdFor(containerName: accessory.ServiceName, onlyRunning: true)).ConfigureAwait(false)).Trim()
+                  ? await RunningContainerId(backend, accessory).ConfigureAwait(false)
                   : "";
 
                await backend.Execute(accessory.Stop(), raiseOnNonZeroExit: false).ConfigureAwait(false);
@@ -433,6 +433,11 @@ public sealed class AccessoryCli : CliBase
             {
             }
          }));
+   }
+
+   private static async Task<string> RunningContainerId(IBackend backend, Commands.Accessory accessory)
+   {
+      return (await backend.CaptureWithInfo(accessory.ContainerIdFor(containerName: accessory.ServiceName, onlyRunning: true)).ConfigureAwait(false)).Trim();
    }
 
    private static async Task ExecuteRegistryLogin(IBackend backend)
