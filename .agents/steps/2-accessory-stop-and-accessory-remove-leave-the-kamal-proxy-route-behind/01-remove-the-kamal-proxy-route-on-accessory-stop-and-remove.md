@@ -56,4 +56,4 @@ Merge risk: easy — reverting the commit restores the old stop order; affects o
 - `CHANGELOG.md` left untouched: the run's prompt reserves it for a later step, so the `### Fixed` entry naming #2 is still to be written.
 - Rung 4 out of reach: driving the CLI needs a live host with Docker and kamal-proxy; the harness tests stand.
 - Whole suite: `dotnet test` passed, 911 tests.
-- Checker: the running-container lookup is now one helper, `AccessoryCli.RunningContainerId`, shared by `Boot`, `Start` and `Stop`. The removal tests now also check that `kamal-proxy remove` runs after the stop, and the not-running test checks that the lookup ran.
+- Checker: the removal tests now also check that `kamal-proxy remove` runs after the stop, and the not-running test checks that the lookup ran. (A shared lookup helper the checker added to `Boot`, `Start` and `Stop` was reverted by the Spec fixer, so `Stop` is the only method that changes.)
