@@ -158,15 +158,18 @@ public sealed class AccessoryCli : CliBase
             On(hosts, async backend =>
             {
                await backend.Execute(KAMAL.Auditor().Record($"Stopped {name} accessory"), verbosity: Verbosity.Debug).ConfigureAwait(false);
+
+               // Deviation from upstream: look up the running container before stopping it, and remove the
+               // route only when it was running. Upstream always runs kamal-proxy remove, which aborts with
+               // "service not found" when no route exists (basecamp/kamal#1533).
+               var target = accessory.RunningProxy
+                  ? (await backend.CaptureWithInfo(accessory.ContainerIdFor(containerName: accessory.ServiceName, onlyRunning: true)).ConfigureAwait(false)).Trim()
+                  : "";
+
                await backend.Execute(accessory.Stop(), raiseOnNonZeroExit: false).ConfigureAwait(false);
 
-               if (accessory.RunningProxy)
-               {
-                  var target = (await backend.CaptureWithInfo(accessory.ContainerIdFor(containerName: accessory.ServiceName, onlyRunning: true)).ConfigureAwait(false)).Trim();
-
-                  if (target.Length > 0)
-                     await backend.Execute(accessory.Remove()).ConfigureAwait(false);
-               }
+               if (target.Length > 0)
+                  await backend.Execute(accessory.Remove()).ConfigureAwait(false);
             })), requireLock: true);
    }
 

@@ -76,6 +76,82 @@ public sealed class AccessoryCliTests
       Assert.Contains(commands, command => command.Contains("rm -rf app-mysql"));
    }
 
+   private const string DeployWithProxiedAccessory =
+      """
+      service: app
+      image: dhh/app
+      servers:
+        - 1.1.1.1
+      registry:
+        username: user
+        password: pw
+      builder:
+        arch: amd64
+      accessories:
+        web:
+          image: nginx:latest
+          host: 1.1.1.3
+          proxy:
+            host: web.example.com
+      """;
+
+   private const string RunningLookup = "docker container ls --filter 'name=^app-web$' --quiet";
+
+   // The fake does not track container state, so the lookup must be shown to run before the stop.
+   private static void AssertLookupBeforeStop(List<string> commands)
+   {
+      var lookup = commands.FindIndex(command => command.Contains(RunningLookup));
+      var stop = commands.FindIndex(command => command.Contains("docker container stop app-web"));
+
+      Assert.True(lookup >= 0, "running-container lookup did not run");
+      Assert.True(stop >= 0, "container stop did not run");
+      Assert.True(lookup < stop, "running-container lookup ran after the container stop");
+   }
+
+   [Fact]
+   public async Task StopRemovesProxyRouteWhenContainerWasRunning()
+   {
+      using var harness = new CliTestHarness(DeployWithProxiedAccessory);
+      harness.RespondTo(RunningLookup, "abc123\n");
+
+      var exitCode = await harness.Run("accessory", "stop", "web");
+
+      Assert.Equal(0, exitCode);
+
+      var commands = harness.CommandsOn("1.1.1.3");
+      Assert.Contains(commands, command => command.Contains("docker exec kamal-proxy kamal-proxy remove app-web"));
+      AssertLookupBeforeStop(commands);
+   }
+
+   [Fact]
+   public async Task RemoveRemovesProxyRouteWhenContainerWasRunning()
+   {
+      using var harness = new CliTestHarness(DeployWithProxiedAccessory);
+      harness.RespondTo(RunningLookup, "abc123\n");
+
+      var exitCode = await harness.Run("accessory", "remove", "web", "-y");
+
+      Assert.Equal(0, exitCode);
+
+      var commands = harness.CommandsOn("1.1.1.3");
+      Assert.Contains(commands, command => command.Contains("docker exec kamal-proxy kamal-proxy remove app-web"));
+      AssertLookupBeforeStop(commands);
+      Assert.Contains(commands, command => command.Contains("docker container prune --force --filter label=service=app-web"));
+      Assert.Contains(commands, command => command.Contains("docker image rm --force nginx:latest"));
+      Assert.Contains(commands, command => command.Contains("rm -rf app-web"));
+   }
+
+   [Fact]
+   public async Task StopSkipsProxyRouteRemovalWhenContainerWasNotRunning()
+   {
+      using var harness = new CliTestHarness(DeployWithProxiedAccessory);
+
+      var exitCode = await harness.Run("accessory", "stop", "web");
+
+      Assert.Equal(0, exitCode);
+      Assert.DoesNotContain(harness.CommandsOn("1.1.1.3"), command => command.Contains("kamal-proxy remove"));
+   }
+
    [Fact]
    public async Task UnknownAccessoryReportsError()
    {

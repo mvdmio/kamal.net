@@ -72,6 +72,7 @@ Composite Actions in this repo (pin at a release tag matching the tool version):
 - **OpenTelemetry audit log shipping** is not ported (file-based audit logging works).
 - `kamal init --bundle` (Gemfile binstubs) is not applicable to .NET and prints a note.
 - `-h` is `--hosts` (as upstream); use `--help`/`-?` for help.
+- **`kamal accessory stop` and `kamal accessory remove`** remove a proxied accessory's kamal-proxy route only when the accessory's container was running. Upstream always tries, and aborts with "service not found" when no route exists ([basecamp/kamal#1533](https://github.com/basecamp/kamal/issues/1533)).
 
 ## Building from source
 

@@ -1,6 +1,6 @@
 # 01 — Remove the kamal-proxy route on accessory stop and remove
 
-Status: pending
+Status: built
 Depends on: none
 
 ## What to build
@@ -46,3 +46,13 @@ Projects: `src/Kamal/Kamal.csproj`, `tests/Kamal.Tests/Kamal.Tests.csproj`
 - [ ] The README's "Known deviations from Ruby Kamal" list has the entry described above, with a link to basecamp/kamal#1533.
 - [ ] `CHANGELOG.md` has a `### Fixed` entry under `## [Unreleased]` that names #2.
 - [ ] `dotnet test` passes for the whole solution.
+
+## Outcome
+
+Safety fact: for a proxied accessory, `accessory stop` and `accessory remove -y` look up the running container before `docker container stop`, then run `docker exec kamal-proxy kamal-proxy remove app-<name>`, and skip that removal when the lookup is empty; if false, kamal-proxy keeps routing to a stopped or removed container, or the command aborts on "service not found" (rung 3)
+Proof: `dotnet test --filter FullyQualifiedName~ProxyRoute` exit 0 — Passed!  - Failed: 0, Passed: 3, Skipped: 0, Total: 3 (accessory-proxy-route-tests.txt in the Proof folder); the two removal tests fail against the old `Stop`
+Merge risk: easy — reverting the commit restores the old stop order; affects operators running `kamal accessory stop`/`remove`/`restart`/`reboot` on proxied accessories
+
+- `CHANGELOG.md` left untouched: the run's prompt reserves it for a later step, so the `### Fixed` entry naming #2 is still to be written.
+- Rung 4 out of reach: driving the CLI needs a live host with Docker and kamal-proxy; the harness tests stand.
+- Whole suite: `dotnet test` passed, 911 tests.
