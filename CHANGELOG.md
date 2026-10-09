@@ -9,6 +9,13 @@ reserved for changes to the port itself.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`accessory stop` / `accessory remove`** — remove the kamal-proxy route of
+  an accessory with a `proxy:` block when its container was running, so
+  kamal-proxy no longer sends traffic to a stopped or removed container
+  ([#2](https://github.com/mvdmio/kamal.net/issues/2)).
+
 ## [2.12.0] - 2026-08-13
 
 Faithful to [Kamal 2.12.0](https://github.com/basecamp/kamal/releases/tag/v2.12.0).
