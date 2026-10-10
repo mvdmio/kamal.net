@@ -22,6 +22,13 @@ upstream version from our patch digit, or bump the patch digit to match one.
 A fix to ported code is a patch bump. Reaching a new upstream minor is a minor
 bump, and the patch resets to `0`.
 
+## Changelog
+
+`CHANGELOG.md` follows Keep a Changelog. A change adds a bullet under
+`## [Unreleased]`, in its `### Added`, `### Changed`, or `### Fixed` group,
+linking its Issue. `/document-changes` writes that bullet in place of its dated
+`## yyyy-mm-dd:` entry, since the release workflow reads only versioned sections.
+
 ## Cutting a release
 
 1. Bump `<Version>` in `src/Kamal/Kamal.csproj`.
