@@ -53,6 +53,12 @@ public sealed class CliTestHarness : IDisposable
       Coordinator.BackendFactory = host => new FakeBackend(host, Handle);
       Coordinator.LocalBackendFactory = () => new FakeBackend("localhost", Handle);
 
+      SshPortForwarding.ForwarderFactory = (hosts, _) =>
+      {
+         ForwardedHosts.Enqueue(hosts.ToList());
+         return new NoopDisposable();
+      };
+
       _originalGit = Git.Runner;
       Git.Runner = new FakeGitRunner { UsedResult = false };
 
@@ -73,6 +79,9 @@ public sealed class CliTestHarness : IDisposable
 
    /// <summary>Scripted responses: the first responder returning non-null wins; default exit 0, no output.</summary>
    public List<Func<string, string, RunResult?>> Responders { get; } = new();
+
+   /// <summary>The host list handed to each local registry port forwarding session, in order.</summary>
+   public ConcurrentQueue<List<string>> ForwardedHosts { get; } = new();
 
    public string Output => _output.ToString();
 
@@ -98,6 +107,13 @@ public sealed class CliTestHarness : IDisposable
       return result ?? new RunResult(0, "", "");
    }
 
+   private sealed class NoopDisposable : IDisposable
+   {
+      public void Dispose()
+      {
+      }
+   }
+
    public void Dispose()
    {
       Directory.SetCurrentDirectory(_originalCwd);
@@ -105,6 +121,7 @@ public sealed class CliTestHarness : IDisposable
       Console.SetError(_originalError);
       Environment.SetEnvironmentVariable("VERSION", _originalVersionEnv);
       Git.Runner = _originalGit;
+      SshPortForwarding.ForwarderFactory = null;
       CliBase.ExecHandler = null;
       CliBase.AskHandler = null;
       CliBase.SleepHandler = seconds => Task.Delay(TimeSpan.FromSeconds(seconds));

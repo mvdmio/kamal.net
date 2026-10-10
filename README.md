@@ -73,6 +73,7 @@ Composite Actions in this repo (pin at a release tag matching the tool version):
 - `kamal init --bundle` (Gemfile binstubs) is not applicable to .NET and prints a note.
 - `-h` is `--hosts` (as upstream); use `--help`/`-?` for help.
 - **`kamal accessory stop` and `kamal accessory remove`** remove a proxied accessory's kamal-proxy route only when the accessory's container was running. Upstream always tries, and aborts with "service not found" when no route exists ([basecamp/kamal#1533](https://github.com/basecamp/kamal/issues/1533)).
+- **Local registry on a build machine that is also a deploy host** — with `registry: server: localhost:<port>`, Kamal.NET skips the SSH tunnel to a host that already runs `kamal-docker-registry`, and that host pulls from its own loopback. Upstream always forwards, and fails on such a host with "Failed to establish port forward".
 
 ## Building from source
 

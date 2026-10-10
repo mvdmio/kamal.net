@@ -118,7 +118,11 @@ public sealed partial class BuildCli : CliBase
       if (!KAMAL.Registry.Local)
          await LoginToRegistryRemotely().ConfigureAwait(false);
 
-      await ForwardLocalRegistryPort(KAMAL.Hosts, async () =>
+      var forwardHosts = KAMAL.Registry.Local
+         ? await HostsWithoutLocalRegistry(KAMAL.Hosts).ConfigureAwait(false)
+         : KAMAL.Hosts;
+
+      await ForwardLocalRegistryPort(forwardHosts, async () =>
       {
          var firstHosts = await MirrorHosts().ConfigureAwait(false);
 
@@ -305,9 +309,45 @@ public sealed partial class BuildCli : CliBase
       return action();
    }
 
+   // DEVIATION: upstream forwards the local registry port to every host, and fails with "Failed to
+   // establish port forward" on a host that already runs kamal-docker-registry: the registry
+   // container holds the port sshd would listen on. Such a host reaches the registry on its own
+   // loopback, so it gets no tunnel.
+   private async Task<IReadOnlyList<string>> HostsWithoutLocalRegistry(IReadOnlyList<string> hosts)
+   {
+      var hostsWithRegistry = new ConcurrentBag<string>();
+
+      await On(hosts, async backend =>
+      {
+         try
+         {
+            var containerId = (await backend.CaptureWithInfo(KAMAL.Registry.RunningContainerId()).ConfigureAwait(false)).Trim();
+
+            if (containerId.Length > 0)
+               hostsWithRegistry.Add(backend.Host);
+         }
+         catch (ExecuteError e) when (e.ExitCode is not null)
+         {
+            // A lookup that exits non-zero counts as no registry here, so the host gets the tunnel
+            // as before. A host that cannot be reached has no exit code: that error is not caught,
+            // so the pull stops here, before the forward, with the same connect failure class.
+         }
+      }).ConfigureAwait(false);
+
+      var hostsByRegistry = hosts.ToLookup(hostsWithRegistry.Contains);
+      var skippedHosts = hostsByRegistry[true].ToList();
+
+      if (skippedHosts.Count > 0)
+         Say($"Skipping local registry port forwarding to {string.Join(", ", skippedHosts)}: kamal-docker-registry is already running there");
+
+      return hostsByRegistry[false].ToList();
+   }
+
    private async Task ForwardLocalRegistryPort(IReadOnlyList<string> hosts, Func<Task> action, string? userOverride = null, int? portOverride = null)
    {
-      if (KAMAL.Config.Registry.Local)
+      // DEVIATION: upstream checks only registry.local? and forwards even to an empty host list. Here
+      // an empty list means every host was skipped by HostsWithoutLocalRegistry, so no forward opens.
+      if (KAMAL.Config.Registry.Local && hosts.Count > 0)
       {
          Say($"Setting up local registry port forwarding to {string.Join(", ", hosts)}...");
 

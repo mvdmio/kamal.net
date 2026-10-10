@@ -47,5 +47,11 @@ public class Registry : CommandsBase
          Docker("rm", "kamal-docker-registry"));
    }
 
+   /// <summary>The ID of the running local registry container; empty output when none runs.</summary>
+   public object[] RunningContainerId()
+   {
+      return Docker("ps", "--filter", "name=^kamal-docker-registry$", "--quiet");
+   }
+
    public bool Local => Config.Registry.Local;
 }

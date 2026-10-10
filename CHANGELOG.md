@@ -11,6 +11,11 @@ reserved for changes to the port itself.
 
 ### Fixed
 
+- **Local registry** — a deploy no longer fails with `Failed to establish port
+  forward` when the build machine is also a deploy host. `kamal build pull`
+  skips the SSH tunnel to a host that already runs the `kamal-docker-registry`
+  container, and that host pulls from its own registry
+  ([#3](https://github.com/mvdmio/kamal.net/issues/3)).
 - **`accessory stop` / `accessory remove`** — remove the kamal-proxy route of
   an accessory with a `proxy:` block when its container was running, so
   kamal-proxy no longer sends traffic to a stopped or removed container

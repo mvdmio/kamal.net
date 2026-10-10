@@ -117,6 +117,12 @@ public class RegistryTests
       Assert.Equal("docker stop kamal-docker-registry && docker rm kamal-docker-registry", Join(Registry().Remove()));
    }
 
+   [Fact]
+   public void RegistryRunningContainerId()
+   {
+      Assert.Equal("docker ps --filter name=^kamal-docker-registry$ --quiet", Join(Registry().RunningContainerId()));
+   }
+
    private Kamal.Commands.Registry Registry() => new(MainConfig());
 
    private KamalConfiguration MainConfig() => new(_config, secrets: _secrets?.Secrets);
