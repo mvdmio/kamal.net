@@ -9,6 +9,8 @@ reserved for changes to the port itself.
 
 ## [Unreleased]
 
+## [2.12.1] - 2026-10-10
+
 ### Fixed
 
 - **Local registry** — a deploy no longer fails with `Failed to establish port
@@ -178,7 +180,8 @@ dotnet tool install -g mvdmio.Kamal
   a note.
 - `-h` is `--hosts` (as upstream); use `--help` or `-?` for help.
 
-[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.12.0...HEAD
+[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.12.1...HEAD
+[2.12.1]: https://github.com/mvdmio/kamal.net/compare/v2.12.0...v2.12.1
 [2.12.0]: https://github.com/mvdmio/kamal.net/compare/v2.11.3...v2.12.0
 [2.11.3]: https://github.com/mvdmio/kamal.net/compare/v2.11.2...v2.11.3
 [2.11.2]: https://github.com/mvdmio/kamal.net/compare/v2.11.1...v2.11.2
