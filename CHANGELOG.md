@@ -9,6 +9,14 @@ reserved for changes to the port itself.
 
 ## [Unreleased]
 
+## [2.12.2] - 2026-11-18
+
+### Added
+
+- **.NET 11** — the tool now targets `net10.0` and `net11.0`, and the test suite
+  runs on `net11.0`. The setup and deploy Actions default `dotnet-version` to
+  `11.0.x`; the input is unchanged.
+
 ## [2.12.1] - 2026-10-10
 
 ### Fixed
@@ -180,7 +188,8 @@ dotnet tool install -g mvdmio.Kamal
   a note.
 - `-h` is `--hosts` (as upstream); use `--help` or `-?` for help.
 
-[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.12.1...HEAD
+[Unreleased]: https://github.com/mvdmio/kamal.net/compare/v2.12.2...HEAD
+[2.12.2]: https://github.com/mvdmio/kamal.net/compare/v2.12.1...v2.12.2
 [2.12.1]: https://github.com/mvdmio/kamal.net/compare/v2.12.0...v2.12.1
 [2.12.0]: https://github.com/mvdmio/kamal.net/compare/v2.11.3...v2.12.0
 [2.11.3]: https://github.com/mvdmio/kamal.net/compare/v2.11.2...v2.11.3

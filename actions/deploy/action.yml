@@ -20,7 +20,7 @@ inputs:
       .NET SDK channel/version for actions/setup-dotnet when the job has no SDK yet
       (suite jobs that already build with setup-dotnet can set skip-dotnet-setup).
     required: false
-    default: "10.0.x"
+    default: "11.0.x"
   skip-dotnet-setup:
     description: >
       If "true", skip actions/setup-dotnet. Use when the job already installed a

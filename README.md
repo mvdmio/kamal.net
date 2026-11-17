@@ -85,7 +85,7 @@ dotnet pack src/Kamal -c Release -o artifacts
 dotnet tool install -g mvdmio.Kamal --add-source ./artifacts
 ```
 
-Requires the .NET 10 SDK. The tool rolls forward, so it runs on any newer runtime.
+Requires the .NET 10 or .NET 11 SDK (the tool targets `net10.0` and `net11.0`).
 
 ## Releasing
 
