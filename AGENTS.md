@@ -1,0 +1,66 @@
+# Kamal.NET
+
+A C# port of [Kamal](https://github.com/basecamp/kamal), distributed as a dotnet
+tool (`mvdmio.Kamal`, command `kamal`).
+
+## Shared rules
+
+- Work on the repo's default branch unless a skill or the user names a branch. This overrides any default that creates branches.
+- Preserve the worktree: parallel sessions share each checkout. Inspect existing changes before editing and leave them intact. When the index already holds another session's staged changes, commit with `git commit -- <your paths>`; for a file another session also edited, stage only your hunks (`git apply --cached` of your filtered diff) and run plain `git commit`.
+- Search early. Quote exact errors.
+- Ask when blocked, or when the design has more than one reasonable path.
+- Telegraph style in replies and agent docs: drop filler and grammar.
+- The main session orchestrates: unless the task is trivial, delegate exploring, implementing, testing and reviewing to subagents, at a model and effort that fit the task.
+- [judgement] Prefer small diffs over broad refactors. Keep files under ~500 lines; tests may exceed it. Add an abstraction only once a second use exists. Ship no backward-compat shim unless real consumers or persisted data need one.
+- Every feature and every bug fix comes with a test; a bug fix's test fails without the fix.
+- Build, then test, one at a time: parallel builds deadlock on file locks. A build that fails on a file another process holds: stop that process, retry.
+- Writing or reviewing C# → [`.agents/refs/csharp-style.md`](.agents/refs/csharp-style.md).
+
+## Versioning
+
+The version has two halves that answer to different owners:
+
+- **Major and minor track upstream Kamal.** `2.11.x` means this port is faithful
+  to Kamal 2.11. These digits move only when the port is brought up to a new
+  upstream release — see `.claude/skills/sync-upstream`.
+- **The patch component belongs to this repo alone.** It does not follow, mirror,
+  or correspond to upstream's patch releases. It counts changes to the port
+  itself: bug fixes in the C# code, packaging changes, anything with no upstream
+  counterpart.
+
+So Kamal.NET 2.11.1 and Ruby Kamal 2.11.1 are unrelated releases that happen to
+share a number. Only the `2.11` part carries a shared meaning. Never infer an
+upstream version from our patch digit, or bump the patch digit to match one.
+
+A fix to ported code is a patch bump. Reaching a new upstream minor is a minor
+bump, and the patch resets to `0`.
+
+## Changelog
+
+`CHANGELOG.md` follows Keep a Changelog. A change adds a bullet under
+`## [Unreleased]`, in its `### Added`, `### Changed`, or `### Fixed` group,
+linking its Issue. `/document-changes` writes that bullet in place of its dated
+`## yyyy-mm-dd:` entry, since the release workflow reads only versioned sections.
+
+## Cutting a release
+
+1. Bump `<Version>` in `src/Kamal/Kamal.csproj`.
+2. Move the `## [Unreleased]` entries in `CHANGELOG.md` under a
+   `## [<version>] - <date>` heading, and add the matching link references at the
+   bottom of the file.
+3. Commit, then `git tag v<version>` and push the tag.
+
+The [release workflow](.github/workflows/release.yml) refuses to run if the tag
+and the csproj version disagree. It takes the release notes verbatim from the
+changelog section matching that version, so an absent or misnamed section ships
+an empty release. A tag with a prerelease suffix (`v2.12.0-rc.1`) is marked as a
+prerelease.
+
+## Layout
+
+- `src/Kamal` — the tool. `Execution/` holds the backends (`LocalBackend`,
+  `SshBackend`) behind `IBackend`.
+- `tests/Kamal.Tests` — the suite. Run it with `dotnet test`.
+- `Kamal.slnx` — the solution.
+
+The default branch is `main`.
